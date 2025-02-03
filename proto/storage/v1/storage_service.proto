@@ -2,34 +2,34 @@ syntax = "proto3";
 
 package storage.v1;
 
-import "proto/common.proto";
+import "proto/common/v1/common.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/proto/storage/v1";
 
 service StorageService {
     // Prepare storage for a new file upload
-    rpc PrepareUpload(UploadPreparationRequest) returns (UploadPreparationResponse) {}
+    rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
     
     // Confirm file upload completion
-    rpc CompleteUpload(UploadCompletionRequest) returns (common.v1.Response) {}
+    rpc CompleteUpload(CompleteUploadRequest) returns (common.v1.CompleteUploadResponse) {}
 }
 
 // Request to prepare file storage
-message UploadPreparationRequest {
+message PrepareUploadRequest {
     string upload_id = 1;
     string filename = 2;
     int64 file_size_bytes = 3;
 }
 
 // Response with upload storage details
-message UploadPreparationResponse {
-    common.v1.Response base_response = 1;
+message PrepareUploadResponse {
+    common.v1.CompleteUploadResponse base_response = 1;
     string storage_path = 2;
     string upload_token = 3;
 }
 
 // Request to mark upload as complete
-message UploadCompletionRequest {
+message CompleteUploadRequest {
     string upload_id = 1;
     common.v1.FileMetadata file_metadata = 2;
 }

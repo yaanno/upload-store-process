@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package processor.v1;
 
-import "proto/common.proto";
+import "proto/common/v1/common.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/proto/processor/v1";
 
@@ -11,7 +11,7 @@ service ProcessorService {
     rpc ProcessFile(ProcessFileRequest) returns (ProcessFileResponse) {}
     
     // Get processing status
-    rpc GetProcessingStatus(ProcessingStatusRequest) returns (ProcessingStatusResponse) {}
+    rpc GetProcessingStatus(GetProcessingStatusRequest) returns (GetProcessingStatusResponse) {}
 }
 
 // Request to process a file
@@ -28,17 +28,17 @@ message ProcessFileResponse {
 }
 
 // Request to check processing status
-message ProcessingStatusRequest {
+message GetProcessingStatusRequest {
     string job_id = 1;
 }
 
 // Detailed processing status
-message ProcessingStatusResponse {
+message GetProcessingStatusResponse {
     enum Status {
-        PENDING = 0;
-        PROCESSING = 1;
-        COMPLETED = 2;
-        FAILED = 3;
+        STATUS_PENDING_UNSPECIFIED = 0;
+        STATUS_PROCESSING = 1;
+        STATUS_COMPLETED = 2;
+        STATUS_FAILED = 3;
     }
     
     common.v1.Response base_response = 1;

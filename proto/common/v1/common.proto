@@ -11,6 +11,13 @@ message Response {
     string error_code = 3;
 }
 
+// Represents a response specific to upload completion
+message CompleteUploadResponse {
+    bool success = 1;
+    string message = 2;
+    string error_code = 3;
+}
+
 // Metadata about the uploaded file
 message FileMetadata {
     string upload_id = 1;
