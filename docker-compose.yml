@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  storage-service:
+    build: 
+      context: .
+      dockerfile: services/storage-service/Dockerfile
+    volumes:
+      - uploads:/tmp/uploads
+    ports:
+      - "50051:50051"
+    environment:
+      - UPLOAD_DIR=/tmp/uploads
+
+volumes:
+  uploads:
+    driver: local

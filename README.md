@@ -76,10 +76,31 @@ upload-store-process/
 - [ ] Add logging and monitoring
 
 ## Local Development
-1. Ensure Go 1.21+ is installed
+1. Ensure Go 1.22+ is installed
 2. Clone the repository
-3. Run `go work sync`
-4. Start services with Docker Compose
+3. Install protobuf tools:
+   ```bash
+   brew install protobuf
+   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+   ```
+4. Generate proto code:
+   ```bash
+   protoc --go_out=proto/gen --go_opt=paths=source_relative \
+          --go-grpc_out=proto/gen --go-grpc_opt=paths=source_relative \
+          proto/*.proto
+   ```
+
+## Docker Deployment
+1. Build and run services:
+   ```bash
+   docker-compose up --build
+   ```
+
+### Service Status
+- [x] Storage Service: Basic gRPC implementation
+- [ ] API Service: Pending implementation
+- [ ] Processor Service: Pending implementation
 
 ## Learning Objectives
 - Microservices architecture
