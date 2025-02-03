@@ -1,10 +1,10 @@
 version: v1
-name: upload-store-process
+name: github.com/yaanno/upload-store-process
 deps:
   - buf.build/googleapis/googleapis
 breaking:
   use:
-    - FILE
+    - STANDARD
 lint:
   use:
-    - DEFAULT
+    - STANDARD
