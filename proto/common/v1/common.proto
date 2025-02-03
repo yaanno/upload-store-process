@@ -6,23 +6,23 @@ option go_package = "github.com/yaanno/upload-store-process/proto/common/v1";
 
 // Represents a generic response for operations
 message Response {
-    bool success = 1;
-    string message = 2;
-    string error_code = 3;
+  bool success = 1;
+  string message = 2;
+  string error_code = 3;
 }
 
 // Represents a response specific to upload completion
 message CompleteUploadResponse {
-    bool success = 1;
-    string message = 2;
-    string error_code = 3;
+  bool success = 1;
+  string message = 2;
+  string error_code = 3;
 }
 
 // Metadata about the uploaded file
 message FileMetadata {
-    string upload_id = 1;
-    string original_filename = 2;
-    int64 file_size_bytes = 3;
-    string mime_type = 4;
-    string upload_timestamp = 5;
+  string upload_id = 1;
+  string original_filename = 2;
+  int64 file_size_bytes = 3;
+  string mime_type = 4;
+  string upload_timestamp = 5;
 }

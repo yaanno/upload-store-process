@@ -7,42 +7,42 @@ import "proto/common/v1/common.proto";
 option go_package = "github.com/yaanno/upload-store-process/proto/processor/v1";
 
 service ProcessorService {
-    // Trigger file processing
-    rpc ProcessFile(ProcessFileRequest) returns (ProcessFileResponse) {}
-    
-    // Get processing status
-    rpc GetProcessingStatus(GetProcessingStatusRequest) returns (GetProcessingStatusResponse) {}
+  // Trigger file processing
+  rpc ProcessFile(ProcessFileRequest) returns (ProcessFileResponse) {}
+
+  // Get processing status
+  rpc GetProcessingStatus(GetProcessingStatusRequest) returns (GetProcessingStatusResponse) {}
 }
 
 // Request to process a file
 message ProcessFileRequest {
-    string upload_id = 1;
-    string file_path = 2;
-    common.v1.FileMetadata file_metadata = 3;
+  string upload_id = 1;
+  string file_path = 2;
+  common.v1.FileMetadata file_metadata = 3;
 }
 
 // Response after initiating processing
 message ProcessFileResponse {
-    common.v1.Response base_response = 1;
-    string job_id = 2;
+  common.v1.Response base_response = 1;
+  string job_id = 2;
 }
 
 // Request to check processing status
 message GetProcessingStatusRequest {
-    string job_id = 1;
+  string job_id = 1;
 }
 
 // Detailed processing status
 message GetProcessingStatusResponse {
-    enum Status {
-        STATUS_PENDING_UNSPECIFIED = 0;
-        STATUS_PROCESSING = 1;
-        STATUS_COMPLETED = 2;
-        STATUS_FAILED = 3;
-    }
-    
-    common.v1.Response base_response = 1;
-    Status current_status = 2;
-    string details = 3;
-    repeated string processed_files = 4;
+  enum Status {
+    STATUS_PENDING_UNSPECIFIED = 0;
+    STATUS_PROCESSING = 1;
+    STATUS_COMPLETED = 2;
+    STATUS_FAILED = 3;
+  }
+
+  common.v1.Response base_response = 1;
+  Status current_status = 2;
+  string details = 3;
+  repeated string processed_files = 4;
 }
