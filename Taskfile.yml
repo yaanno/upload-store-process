@@ -1,0 +1,62 @@
+version: '3'
+
+vars:
+  API_SERVICE_PORT: 8080
+  STORAGE_SERVICE_PORT: 50051
+  PROCESSOR_SERVICE_PORT: 50051
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  proto:generate:
+    desc: Generate Go code from proto definitions
+    cmds:
+      - buf generate
+
+  deps:update:
+    desc: Update Go dependencies
+    cmds:
+      - go mod tidy
+      - go mod verify
+
+  lint:
+    desc: Run linters and static analysis
+    cmds:
+      - buf lint
+      - go vet ./...
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./tests/unit/...
+      - go test ./tests/integration/...
+      - go test ./tests/performance/...
+
+  test:unit:
+    desc: Run unit tests
+    cmds:
+      - go test ./tests/unit/...
+
+  test:integration:
+    desc: Run integration tests
+    cmds:
+      - go test ./tests/integration/...
+
+  test:performance:
+    desc: Run performance tests
+    cmds:
+      - go test -v ./tests/performance/...
+
+  test:coverage:
+    desc: Generate test coverage report
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  clean:
+    desc: Clean generated files and caches
+    cmds:
+      - rm -rf gen/
+      - go clean ./...
