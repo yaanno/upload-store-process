@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package fileprocessor.v1;
 
-import "shared/v1/common.proto";
+import "shared/v1/shared.proto";
 
-option go_package = "github.com/yaanno/upload-store-process/gen/go/processor/v1";
+option go_package = "github.com/yaanno/upload-store-process/gen/go/fileprocessor/v1";
 
-service ProcessorService {
+service FileProcessorService {
   // Trigger file processing
   rpc ProcessFile(ProcessFileRequest) returns (ProcessFileResponse) {}
 

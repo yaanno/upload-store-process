@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package fileupload.v1;
 
-import "shared/v1/common.proto";
+import "shared/v1/shared.proto";
 
-option go_package = "github.com/yaanno/upload-store-process/gen/go/api/v1";
+option go_package = "github.com/yaanno/upload-store-process/gen/go/fileupload/v1";
 
-service ApiService {
+service FileUploadService {
   // Initiate file upload process
   rpc InitiateUpload(InitiateUploadRequest) returns (InitiateUploadResponse) {}
 }

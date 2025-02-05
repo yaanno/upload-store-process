@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package filestorage.v1;
 
-import "shared/v1/common.proto";
+import "shared/v1/shared.proto";
 
-option go_package = "github.com/yaanno/upload-store-process/gen/go/storage/v1";
+option go_package = "github.com/yaanno/upload-store-process/gen/go/filestorage/v1";
 
-service StorageService {
+service FileStorageService {
   // Prepare storage for a new file upload
   rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
 
