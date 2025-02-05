@@ -26,21 +26,79 @@
 
 ## 3. Service Requirements
 
-### 3.1 Backend Service
-- Coordinate file upload workflow
-- Generate upload tokens
-- Manage user interactions
+### 3.1 FileUploadService Requirements
+1. **Authentication**
+   - Secure user login
+   - Token-based authentication
+   - Role-based access control
 
-### 3.2 Storage Service
-- Handle file storage
-- Implement basic compression
-- Manage file metadata
-- Provide secure file access
+2. **Upload Workflow**
+   - Generate unique upload tokens
+   - Validate file metadata
+   - Coordinate with FileStorageService
+   - Trigger FileProcessorService
 
-### 3.3 Processor Service
-- Process uploaded files
-- Extract basic metadata
-- Perform text transformations
+### 3.2 FileProcessorService Requirements
+1. **File Processing**
+   - Support multiple file types
+   - Streaming JSON processing
+   - Metadata extraction
+   - Data transformation
+
+2. **Processing Capabilities**
+   - Chunk-based processing
+   - Memory-efficient parsing
+   - Error handling
+   - Logging and monitoring
+
+### 3.3 FileStorageService Requirements
+1. **Storage Management**
+   - Compressed file storage
+   - Efficient file retrieval
+   - Metadata tracking
+   - Secure file access
+
+2. **Compression Strategies**
+   - Support multiple compression algorithms
+   - Streaming compression
+   - Minimal memory overhead
+
+### 3.4 Shared Requirements
+
+#### Proto Definitions
+- `proto/fileupload/v1/upload.proto`
+- `proto/fileprocessor/v1/processor.proto`
+- `proto/filestorage/v1/storage.proto`
+- `proto/shared/v1/shared.proto`
+
+#### Communication Protocols
+- gRPC for synchronous interactions
+- NATS for asynchronous events
+- JWT for authentication
+
+### 3.5 Performance Expectations
+
+1. **FileUploadService**
+   - Low-latency token generation
+   - Rapid authentication
+   - Minimal overhead in upload coordination
+
+2. **FileProcessorService**
+   - Efficient streaming processing
+   - Configurable chunk sizes
+   - Scalable metadata extraction
+
+3. **FileStorageService**
+   - Fast file compression
+   - Quick retrieval times
+   - Minimal storage overhead
+
+### 3.6 Scalability Considerations
+
+- Modular service design
+- Independent service scaling
+- Event-driven architecture
+- Minimal inter-service dependencies
 
 ## 4. Communication Requirements
 

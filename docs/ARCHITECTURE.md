@@ -27,41 +27,38 @@
 
 ## 3. Service Interactions
 
-### Backend Service
-- Coordinates file upload workflow
-- Manages initial user interactions
-- Generates upload tokens
-- Initiates storage and processing flows
+### FileUploadService
+- Handles user authentication
+- Manages file upload workflows
+- Coordinates upload processes
 
-### Storage Service
-- Handles file storage mechanisms
-- Implements file compression
-- Manages file metadata
-- Provides secure file access
-
-### Processor Service
+### FileProcessorService
 - Processes uploaded files
-- Extracts basic metadata
-- Performs text transformations
-- Handles background processing tasks
+- Extracts file metadata
+- Applies transformations
+
+### FileStorageService
+- Manages file storage
+- Handles compression
+- Provides file retrieval mechanisms
 
 ## 4. Data Flow
 
 ```
 User Upload Request
 ↓
-Backend Service (gRPC)
+FileUploadService (gRPC)
 ├── Validate Request
 ├── Generate Upload Token
 └── Initiate Storage Process
     ↓
-    Storage Service
+    FileStorageService
     ├── Compress File
     ├── Store Metadata
     └── Publish Upload Event
         ↓
         Message Queue
-        └── Processor Service
+        └── FileProcessorService
             ├── Process File
             └── Store Results
 ```
@@ -268,11 +265,11 @@ nc.Subscribe("file.process.request", func(msg *nats.Msg) {
 ```
 File Upload Complete
 │
-├── Storage Service
+├── FileStorageService
 │   ├── Compress File
 │   └── Store Compressed File
 │
-└── Processing Service
+└── FileProcessorService
     ├── Receive Processing Event
     ├── Retrieve Compressed File
     ├── Streaming Decompression
@@ -300,7 +297,7 @@ File Upload Complete
 #### Event-Driven Processing Flow
 
 1. **File Upload Completion**
-   - Storage service compresses file
+   - FileStorageService compresses file
    - Publishes file ready event to NATS
 
 2. **Processing Initiation**
@@ -315,11 +312,11 @@ File Upload Complete
    }
    ```
 
-3. **Processing Service Workflow**
+3. **FileProcessorService Workflow**
    ```go
    func ProcessFile(event FileProcessEvent) {
        // 1. Retrieve compressed file
-       compressedFile := storage.RetrieveFile(event.StoragePath)
+       compressedFile := FileStorageService.RetrieveFile(event.StoragePath)
        
        // 2. Create streaming processor
        processor := NewStreamingJSONProcessor(compressedFile)
@@ -470,7 +467,7 @@ Current State: Single Service
 └── Authentication
 
 Future Potential Microservices
-[User Service]   [File Service]   [Storage Service]
+[UserService]   [FileUploadService]   [FileStorageService]
 ```
 
 ### Scalability Considerations

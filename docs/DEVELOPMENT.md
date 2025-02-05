@@ -26,6 +26,54 @@
    task proto:generate
    ```
 
+## Service Development Guide
+
+### Project Services
+
+1. **FileUploadService**
+   - Located in: `services/file-upload-service`
+   - Responsible for user authentication and upload coordination
+
+2. **FileProcessorService**
+   - Located in: `services/file-processor-service`
+   - Handles file processing and metadata extraction
+
+3. **FileStorageService**
+   - Located in: `services/file-storage-service`
+   - Manages file compression and storage
+
+### Development Workflow
+
+#### Service Setup
+```bash
+# Navigate to specific service directory
+cd services/file-upload-service
+# or
+cd services/file-processor-service
+# or
+cd services/file-storage-service
+```
+
+#### Proto Definitions
+- `proto/fileupload/v1/upload.proto`
+- `proto/fileprocessor/v1/processor.proto`
+- `proto/filestorage/v1/storage.proto`
+- `proto/shared/v1/shared.proto`
+
+### Local Development
+
+#### Running Individual Services
+```bash
+# FileUploadService
+task file-upload-service:dev
+
+# FileProcessorService
+task file-processor-service:dev
+
+# FileStorageService
+task file-storage-service:dev
+```
+
 ## Running Services
 
 ### Development Mode
@@ -58,6 +106,13 @@ task test:processor
 task test:integration
 ```
 
+## Testing Strategy
+
+#### Service-Specific Testing
+- FileUploadService: Authentication, token generation
+- FileProcessorService: File transformation tests
+- FileStorageService: Compression, storage mechanisms
+
 ## Code Quality
 
 ### Linting
@@ -83,6 +138,16 @@ task fmt
 - Delve debugger
 - Go's built-in race detector
 
+### Debugging Guidelines
+
+#### Debugging Services
+```bash
+# Enable verbose logging for specific service
+LOG_LEVEL=debug task file-upload-service:dev
+LOG_LEVEL=debug task file-processor-service:dev
+LOG_LEVEL=debug task file-storage-service:dev
+```
+
 ## Contribution Guidelines
 
 ### Branch Strategy
@@ -91,12 +156,11 @@ task fmt
 - Feature branches: `feature/description`
 
 ### Pull Request Process
-1. Create feature branch
-2. Run `task init`
+1. Choose service directory
+2. Implement changes
 3. Write tests
-4. Ensure all tests pass
-5. Update documentation
-6. Submit pull request
+4. Run service-specific tests
+5. Submit pull request
 
 ### Code Review Checklist
 - Clear, readable code

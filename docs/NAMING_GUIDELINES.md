@@ -190,6 +190,65 @@ type FileProcessingCompletedEvent struct {}
   type FileStorageService interface {}
   ```
 
+## 13. Project-Specific Naming Conventions
+
+### 13.1 Service Naming
+
+#### Current Project Services
+- `FileUploadService`
+- `FileProcessorService`
+- `FileStorageService`
+
+#### Naming Pattern
+`{Domain}{ServiceType}`
+
+### 13.2 Proto Definitions
+
+#### Proto File Locations
+- `proto/fileupload/v1/upload.proto`
+- `proto/fileprocessor/v1/processor.proto`
+- `proto/filestorage/v1/storage.proto`
+- `proto/shared/v1/shared.proto`
+
+#### Package Naming
+- Use domain-specific, lowercase package names
+- Example: `package fileupload.v1;`
+
+### 13.3 Service Directory Structure
+
+```
+services/
+├── file-upload-service/
+├── file-processor-service/
+└── file-storage-service/
+```
+
+### 13.4 Proto Service Naming
+
+```protobuf
+// Correct naming
+service FileUploadService {}
+service FileProcessorService {}
+service FileStorageService {}
+```
+
+### 13.5 Go Package Conventions
+
+```go
+// Consistent package naming
+option go_package = "github.com/yaanno/upload-store-process/gen/go/fileupload/v1";
+option go_package = "github.com/yaanno/upload-store-process/gen/go/fileprocessor/v1";
+option go_package = "github.com/yaanno/upload-store-process/gen/go/filestorage/v1";
+```
+
+### 13.6 Recommended Practices
+
+1. Use clear, descriptive names
+2. Follow {Domain}{ServiceType} pattern
+3. Be consistent across documentation and code
+4. Avoid abbreviations
+5. Make names self-explanatory
+
 ## Conclusion
 
 Consistent naming is an art and a science. These guidelines aim to create a uniform, readable, and maintainable codebase that communicates its intent clearly.
