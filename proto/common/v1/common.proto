@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package common.v1;
 
-option go_package = "github.com/yaanno/upload-store-process/proto/common/v1";
+option go_package = "github.com/yaanno/upload-store-process/gen/common/v1";
 
 // Represents a generic response for operations
 message Response {

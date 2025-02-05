@@ -4,7 +4,7 @@ package storage.v1;
 
 import "proto/common/v1/common.proto";
 
-option go_package = "github.com/yaanno/upload-store-process/proto/storage/v1";
+option go_package = "github.com/yaanno/upload-store-process/gen/storage/v1";
 
 service StorageService {
   // Prepare storage for a new file upload
