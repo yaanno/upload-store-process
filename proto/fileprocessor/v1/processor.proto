@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package processor.v1;
+package fileprocessor.v1;
 
-import "common/v1/common.proto";
+import "shared/v1/common.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/gen/go/processor/v1";
 
@@ -18,12 +18,12 @@ service ProcessorService {
 message ProcessFileRequest {
   string upload_id = 1;
   string file_path = 2;
-  common.v1.FileMetadata file_metadata = 3;
+  shared.v1.FileMetadata file_metadata = 3;
 }
 
 // Response after initiating processing
 message ProcessFileResponse {
-  common.v1.Response base_response = 1;
+  shared.v1.Response base_response = 1;
   string job_id = 2;
 }
 
@@ -41,7 +41,7 @@ message GetProcessingStatusResponse {
     STATUS_FAILED = 3;
   }
 
-  common.v1.Response base_response = 1;
+  shared.v1.Response base_response = 1;
   Status current_status = 2;
   string details = 3;
   repeated string processed_files = 4;

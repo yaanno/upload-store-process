@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package storage.v1;
+package filestorage.v1;
 
-import "common/v1/common.proto";
+import "shared/v1/common.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/gen/go/storage/v1";
 
@@ -11,7 +11,7 @@ service StorageService {
   rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
 
   // Confirm file upload completion
-  rpc CompleteUpload(CompleteUploadRequest) returns (common.v1.CompleteUploadResponse) {}
+  rpc CompleteUpload(CompleteUploadRequest) returns (shared.v1.CompleteUploadResponse) {}
 }
 
 // Request to prepare file storage
@@ -23,7 +23,7 @@ message PrepareUploadRequest {
 
 // Response with upload storage details
 message PrepareUploadResponse {
-  common.v1.CompleteUploadResponse base_response = 1;
+  shared.v1.CompleteUploadResponse base_response = 1;
   string storage_path = 2;
   string upload_token = 3;
 }
@@ -31,5 +31,5 @@ message PrepareUploadResponse {
 // Request to mark upload as complete
 message CompleteUploadRequest {
   string upload_id = 1;
-  common.v1.FileMetadata file_metadata = 2;
+  shared.v1.FileMetadata file_metadata = 2;
 }

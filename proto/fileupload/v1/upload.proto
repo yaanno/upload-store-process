@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package api.v1;
+package fileupload.v1;
 
-import "common/v1/common.proto";
+import "shared/v1/common.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/gen/go/api/v1";
 
@@ -19,7 +19,7 @@ message InitiateUploadRequest {
 
 // Response with upload details
 message InitiateUploadResponse {
-  common.v1.Response base_response = 1;
+  shared.v1.Response base_response = 1;
   string upload_id = 2;
   string storage_endpoint = 3; // Where to upload the actual file
 }
