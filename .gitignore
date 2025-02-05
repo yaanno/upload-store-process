@@ -1,0 +1,87 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# IDE-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled Object files
+*.o
+*.a
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary files
+tmp/
+temp/
+
+# Build output directories
+build/
+dist/
+bin/
+out/
+
+# Generated files
+gen/
+generated/
+
+# Protobuf generated files
+*.pb.go
+*.pb.gw.go
+
+# Buf generated files
+buf.lock
+
+# Local development configs
+*.local.yaml
+*.local.yml
+
+# Profiling and debugging files
+*.prof
+*.pprof
+cpu.out
+mem.out
+
+# Backup files
+*.bak
+*.gho
+*.ori
+*.orig
+*.tmp
+
+# Miscellaneous
+.history/
+.cache/
