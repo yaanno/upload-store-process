@@ -407,6 +407,111 @@ type ProcessingMetadata struct {
 - **Communication**: gRPC, NATS
 - **Monitoring**: Prometheus, OpenTelemetry
 
+## Architectural Approach: Modular Monolith
+
+### Design Philosophy
+
+#### Overview
+Our project adopts a **Modular Monolith** architectural approach, balancing simplicity with future extensibility. This design provides a pragmatic solution for our learning-focused project, offering:
+- Simplified initial development
+- Reduced operational complexity
+- Clear internal boundaries
+- Preparation for potential future microservices
+
+### Core Service Design
+
+#### Responsibilities
+The core service integrates multiple responsibilities:
+- User management
+- Authentication
+- File upload processing
+- Data storage handling
+- Permission management
+
+#### Architectural Structure
+
+```go
+type CoreService struct {
+    UserManager     *UserManagement
+    FileManager     *FileOperations
+    StorageManager  *StorageHandler
+    AuthManager     *AuthenticationProvider
+}
+```
+
+### Design Principles
+
+1. **Modularity**
+   - Clear internal service boundaries
+   - Use of interfaces and composition
+   - Minimal coupling between components
+
+2. **Flexibility**
+   - Prepare for potential future service extraction
+   - Implement dependency injection
+   - Design with scalability in mind
+
+### Architectural Benefits
+
+#### Advantages
+- Simplified initial implementation
+- Lower operational complexity
+- Faster inter-component communication
+- Easier deployment and management
+
+#### Potential Evolution
+```
+Current State: Single Service
+[Core Service]
+│
+├── User Management
+├── File Upload
+├── Storage Handling
+└── Authentication
+
+Future Potential Microservices
+[User Service]   [File Service]   [Storage Service]
+```
+
+### Scalability Considerations
+
+#### When to Consider Microservices
+- Increasing system complexity
+- Divergent scaling requirements
+- Performance bottlenecks
+- Team growth and independent development needs
+
+### Implementation Guidelines
+
+1. Maintain clear internal module boundaries
+2. Use interfaces for component interactions
+3. Implement dependency injection
+4. Design with potential future decomposition in mind
+
+### Code Example
+
+```go
+// Unified interface for multiple operations
+func (s *CoreService) ProcessUpload(
+    ctx context.Context, 
+    user *User, 
+    uploadRequest *UploadRequest,
+) (*UploadResult, error) {
+    // Coordinate:
+    // 1. User authentication
+    // 2. Permission checking
+    // 3. File processing
+    // 4. Storage handling
+    // 5. Metadata generation
+}
+```
+
+### Conclusion
+
+The Modular Monolith approach provides a balanced, pragmatic solution for our project. It offers the benefits of a monolithic architecture while maintaining the flexibility to evolve into microservices if required.
+
+**Key Takeaway**: Prioritize clear design and modularity over premature architectural complexity.
+
 ## Frontend-Backend API Contract
 
 ### Overview
