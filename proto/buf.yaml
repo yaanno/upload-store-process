@@ -4,7 +4,10 @@ name: github.com/yaanno/upload-store-process
 
 breaking:
   use:
-    - STANDARD
+    - FILE
+    - PACKAGE
+    - WIRE_JSON
+    - WIRE
 
 lint:
   use:
