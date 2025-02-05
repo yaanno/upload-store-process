@@ -70,7 +70,7 @@ Backend Service (gRPC)
 
 ### Communication
 - gRPC for immediate interactions
-- NATS/Kafka for event-driven communication
+- NATS for event-driven communication
 
 ### Storage
 - Local filesystem
@@ -131,6 +131,182 @@ Backend Service (gRPC)
 - Performance metrics
 - Simple error tracking
 
+## Communication Architecture
+
+### Hybrid Communication Strategy
+
+Our microservices architecture employs a hybrid communication approach:
+- **Synchronous Communication**: gRPC
+- **Asynchronous Communication**: NATS Message Queue
+
+#### Communication Patterns
+
+1. **Synchronous gRPC**
+   - Critical, immediate interactions
+   - Real-time request/response
+   - Strong typing via Protocol Buffers
+   - Used for:
+     * Authentication
+     * Upload URL generation
+     * Metadata retrieval
+
+2. **Asynchronous NATS**
+   - Background processing
+   - Decoupled service interactions
+   - Event-driven workflows
+   - Used for:
+     * File processing triggers
+     * Notification broadcasts
+     * Asynchronous task management
+
+### Communication Flow Diagram
+
+```
+Client Request
+│
+├── API Service (gRPC)
+│   ├── Authentication
+│   ├── Request Validation
+│   └── Immediate Responses
+│
+└── Background Processing
+    └── NATS Message Queue
+        ├── File Processing Events
+        ├── Service Notifications
+        └── Asynchronous Workflows
+```
+
+### NATS Implementation Details
+
+#### Key Features
+- Lightweight message broker
+- High-performance pub/sub system
+- Simple, intuitive API
+- Native Go support
+- JetStream for persistent messaging
+
+#### Message Queue Topology
+
+1. **Topics**
+   - `file.upload.initiated`
+   - `file.process.request`
+   - `file.process.completed`
+   - `service.notification`
+
+2. **Queue Groups**
+   - Load balanced message consumption
+   - Guaranteed single processing of messages
+
+#### Example NATS Workflow
+
+```go
+// Publishing a file processing event
+nc.Publish("file.process.request", &FileProcessEvent{
+    FileID:   "unique-file-id",
+    Metadata: fileMetadata,
+})
+
+// Subscribing to processing events
+nc.Subscribe("file.process.request", func(msg *nats.Msg) {
+    // Process file asynchronously
+})
+```
+
+### Advantages of Hybrid Approach
+
+1. **Flexibility**
+   - Choose right communication method per use case
+   - Optimize for performance and complexity
+
+2. **Scalability**
+   - Decoupled service interactions
+   - Independent service scaling
+   - Resilient to temporary service unavailability
+
+3. **Performance**
+   - Low-latency gRPC for critical paths
+   - Efficient message routing with NATS
+   - Minimal overhead
+
+### Service Interaction Examples
+
+1. **File Upload**
+   - gRPC: Generate upload URL
+   - NATS: Trigger background processing
+
+2. **File Processing**
+   - gRPC: Retrieve file metadata
+   - NATS: Distribute processing tasks
+
+### Monitoring and Observability
+
+- Distributed tracing
+- Message queue metrics
+- Service health checks
+- Performance logging
+
+### Potential Future Enhancements
+
+- Implement circuit breakers
+- Add more sophisticated error handling
+- Explore advanced NATS features (JetStream)
+- Implement comprehensive logging
+
+## Frontend-Backend API Contract
+
+### Overview
+This section outlines the preliminary REST API design for frontend-backend communication.
+
+### Design Principles
+- RESTful API design
+- OpenAPI/Swagger specification
+- Clear, predictable endpoints
+- Flexible metadata handling
+
+### Key Endpoints
+- File Upload Initiation
+- File Upload Completion
+- File Listing
+- File Metadata Retrieval
+- File Processing Trigger
+
+### API Specification Location
+- Detailed OpenAPI specification stored in `docs/openapi.yaml`
+- Generated client SDKs will be available in future iterations
+
+### Considerations
+- Support for multiple frontend frameworks
+- Easy integration with modern web technologies
+- Minimal coupling between frontend and backend
+
+### Future Refinements
+- Comprehensive error handling
+- Advanced filtering and pagination
+- Potential GraphQL exploration
+- Client SDK generation
+
+### Technology Stack for API
+- REST API
+- OpenAPI 3.0
+- JSON payload format
+- HTTP/HTTPS communication
+
+### Temporary Status
+**Note**: This section is a placeholder and will be refined as the project evolves.
+
+## Technology Stack
+
+### Communication
+- **Synchronous**: gRPC
+- **Asynchronous**: NATS
+- **Serialization**: Protocol Buffers
+
+### Languages and Frameworks
+- Go (Golang)
+- gRPC-Go
+- NATS Go Client
+- OpenTelemetry (Tracing)
+
 ## Conclusion
 
-A deliberately simple, educational microservices architecture focusing on core distributed systems concepts.
+A deliberately simple, educational microservices architecture focusing on core distributed systems concepts. Our hybrid communication architecture provides a robust, flexible, and educational approach to building microservices, balancing simplicity with powerful communication patterns.
