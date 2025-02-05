@@ -4,7 +4,7 @@ package processor.v1;
 
 import "common/v1/common.proto";
 
-option go_package = "github.com/yaanno/upload-store-process/gen/processor/v1";
+option go_package = "github.com/yaanno/upload-store-process/gen/go/processor/v1";
 
 service ProcessorService {
   // Trigger file processing
