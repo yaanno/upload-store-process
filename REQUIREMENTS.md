@@ -7,11 +7,12 @@ A microservices-based file upload, storage, and processing system designed as a 
 
 ### 2.1 API Service
 #### 2.1.1 File Upload
-- SHALL accept ZIP file uploads via HTTP POST
+- SHALL accept UTF-8 encoded text-based file uploads via HTTP POST
+  - Supported file types: CSV, JSON, TXT
 - SHALL generate a unique upload identifier for each request
 - SHALL validate incoming file before processing
-  - File type MUST be ZIP
-  - Maximum file size: 1 GB
+  - File type MUST be one of: CSV, JSON, TXT
+  - Maximum file size: 500 MB
   - Minimum file size: > 0 bytes
 - SHALL reject invalid file uploads with descriptive error messages
 
@@ -20,23 +21,27 @@ A microservices-based file upload, storage, and processing system designed as a 
 - SHALL generate unique, secure file storage paths
 - SHALL support local filesystem storage
 - SHALL implement file naming convention:
-  - Format: `{upload-id}_{timestamp}.zip`
+  - Format: `{upload-id}_{timestamp}.{ext}` (ext: csv, json, or txt)
 - SHALL store file metadata:
   - Original filename
   - Upload timestamp
   - File size
   - Upload source IP
+  - File type
 
 #### 2.2.2 File Validation
-- SHALL validate ZIP file integrity
-- SHALL reject corrupted or incomplete ZIP files
+- SHALL validate text file encoding (UTF-8)
+- SHALL reject files with unsupported encodings or file types
 
 ### 2.3 Processor Service
-#### 2.3.1 ZIP Processing
-- SHALL unzip uploaded files
+#### 2.3.1 Text Processing
+- SHALL process uploaded UTF-8 text-based files
 - SHALL extract file contents
-- SHALL generate processing report for each uploaded ZIP
-- SHALL support multiple file types within ZIP
+- SHALL generate processing report for each uploaded file
+- SHALL support text analysis specific to file type:
+  - CSV: column count, header analysis
+  - JSON: structure validation, key analysis
+  - TXT: word count, language detection
 
 #### 2.3.2 Processing Workflow
 - SHALL handle files asynchronously via message queue
@@ -48,7 +53,7 @@ A microservices-based file upload, storage, and processing system designed as a 
 ### 3.1 Performance
 - SHALL support concurrent file uploads
 - Recommended: Minimum 5 simultaneous uploads
-- Maximum processing time per ZIP: 5 minutes
+- Maximum processing time per file: 5 minutes
 
 ### 3.2 Reliability
 - SHALL implement comprehensive error handling
@@ -97,7 +102,7 @@ A microservices-based file upload, storage, and processing system designed as a 
 - All services MUST start successfully in Docker environment
 - File upload workflow MUST complete end-to-end
 - Processing reports MUST be generated for each upload
-- System MUST handle various ZIP file scenarios
+- System MUST handle various file scenarios
 
 ## 8. Compliance and Standards
 - Follow Go best practices
