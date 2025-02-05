@@ -252,6 +252,161 @@ nc.Subscribe("file.process.request", func(msg *nats.Msg) {
 - Explore advanced NATS features (JetStream)
 - Implement comprehensive logging
 
+## Processing Service Architecture
+
+### Service Responsibilities
+
+#### Core Processing Capabilities
+- Stream-based file processing
+- Compressed file handling
+- Metadata extraction
+- Data transformation
+- Flexible JSON processing
+
+### File Processing Workflow
+
+```
+File Upload Complete
+│
+├── Storage Service
+│   ├── Compress File
+│   └── Store Compressed File
+│
+└── Processing Service
+    ├── Receive Processing Event
+    ├── Retrieve Compressed File
+    ├── Streaming Decompression
+    ├── JSON Parsing
+    │   ├── Chunk-based Processing
+    │   ├── Memory Efficient Parsing
+    │   └── Configurable Extractors
+    │
+    ├── Data Extraction
+    │   ├── Apply Predefined Rules
+    │   ├── Transform Data
+    │   └── Generate Metadata
+    │
+    └── Result Handling
+        ├── Store Processed Metadata
+        └── Publish Completion Event
+```
+
+### Storage-Processor Service Interaction
+
+#### Communication Mechanisms
+- **Synchronous**: gRPC for metadata retrieval
+- **Asynchronous**: NATS for processing events
+
+#### Event-Driven Processing Flow
+
+1. **File Upload Completion**
+   - Storage service compresses file
+   - Publishes file ready event to NATS
+
+2. **Processing Initiation**
+   ```go
+   // NATS Event Structure
+   type FileProcessEvent struct {
+       FileID       string
+       Filename     string
+       StoragePath  string
+       Compression  string  // zstd, lz4
+       UploadedAt   time.Time
+   }
+   ```
+
+3. **Processing Service Workflow**
+   ```go
+   func ProcessFile(event FileProcessEvent) {
+       // 1. Retrieve compressed file
+       compressedFile := storage.RetrieveFile(event.StoragePath)
+       
+       // 2. Create streaming processor
+       processor := NewStreamingJSONProcessor(compressedFile)
+       
+       // 3. Process file
+       result, err := processor.Process()
+       
+       // 4. Handle processing result
+       if err == nil {
+           // Store metadata
+           // Publish success event
+       } else {
+           // Publish failure event
+       }
+   }
+   ```
+
+### Processing Strategies
+
+#### JSON Processing Approach
+- Streaming parser
+- Chunk-based processing
+- Configurable extractors
+- Memory-efficient design
+
+#### Key Processing Components
+1. **Decompression Stream**
+   - Support for zstd/lz4
+   - Minimal memory overhead
+   - Efficient for large files
+
+2. **JSON Extractor**
+   ```go
+   type JSONExtractor struct {
+       Name        string
+       Path        string
+       Transformer func(interface{}) (interface{}, error)
+   }
+   ```
+
+3. **Transformation Rules**
+   - Data normalization
+   - Sensitive information removal
+   - Custom transformation logic
+
+### Metadata Generation
+
+```go
+type ProcessingMetadata struct {
+    FileID             string
+    TotalRecords       int
+    ProcessingTime     time.Duration
+    ExtractedFields    []string
+    CompressionMethod  string
+    ProcessingStatus   ProcessingStatus
+}
+```
+
+### Error Handling and Resilience
+
+- Graceful error management
+- Partial processing support
+- Detailed error logging
+- Event-based error notification
+
+### Monitoring and Observability
+
+- Processing duration tracking
+- Success/failure metrics
+- Resource utilization monitoring
+- Distributed tracing support
+
+### Future Enhancements
+
+1. Machine learning-based extraction
+2. More complex transformation rules
+3. Support for additional file types
+4. Advanced error recovery mechanisms
+
+### Technology Stack
+
+- **Language**: Go
+- **Parsing**: Streaming JSON parser
+- **Compression**: zstd, lz4
+- **Communication**: gRPC, NATS
+- **Monitoring**: Prometheus, OpenTelemetry
+
 ## Frontend-Backend API Contract
 
 ### Overview
