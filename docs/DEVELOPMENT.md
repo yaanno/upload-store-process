@@ -5,7 +5,7 @@
 ### Prerequisites
 - Go 1.21+
 - Docker
-- Make
+- Task (Task runner)
 - Protocol Buffers compiler
 
 ### Local Development Environment
@@ -18,29 +18,25 @@
 
 2. **Install Dependencies**
    ```bash
-   go mod download
-   go mod tidy
+   task deps
    ```
 
 3. **Generate Proto Files**
    ```bash
-   make proto-gen
+   task proto:generate
    ```
 
 ## Running Services
 
 ### Development Mode
 ```bash
-# Build all services
-make build
-
-# Run services
-make run
+# Run all services
+task services:up
 
 # Run specific service
-make run-backend
-make run-storage
-make run-processor
+task service:backend
+task service:storage
+task service:processor
 ```
 
 ## Testing
@@ -48,18 +44,18 @@ make run-processor
 ### Unit Tests
 ```bash
 # Run all unit tests
-make test
+task test
 
 # Test specific service
-make test-backend
-make test-storage
-make test-processor
+task test:backend
+task test:storage
+task test:processor
 ```
 
 ### Integration Tests
 ```bash
 # Run integration tests
-make integration-test
+task test:integration
 ```
 
 ## Code Quality
@@ -67,13 +63,13 @@ make integration-test
 ### Linting
 ```bash
 # Run golangci-lint
-make lint
+task lint
 ```
 
 ### Code Formatting
 ```bash
 # Format all Go files
-make fmt
+task fmt
 ```
 
 ## Debugging
@@ -96,10 +92,11 @@ make fmt
 
 ### Pull Request Process
 1. Create feature branch
-2. Write tests
-3. Ensure all tests pass
-4. Update documentation
-5. Submit pull request
+2. Run `task init`
+3. Write tests
+4. Ensure all tests pass
+5. Update documentation
+6. Submit pull request
 
 ### Code Review Checklist
 - Clear, readable code
@@ -146,3 +143,72 @@ go tool pprof mem.prof
 - gRPC guides
 - Microservices design patterns
 - Distributed systems concepts
+
+## Taskfile Concepts
+
+### Task Definition Principles
+- Declarative task descriptions
+- Cross-platform compatibility
+- Minimal configuration overhead
+- Composable and reusable tasks
+
+### Taskfile Structure
+```yaml
+version: '3'
+
+tasks:
+  default:
+    desc: "Default task"
+    cmds:
+      - echo "Welcome to Upload Store Process"
+
+  init:
+    desc: "Initialize project dependencies"
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  proto:generate:
+    desc: "Generate protobuf files"
+    cmds:
+      - protoc --go_out=. --go_opt=paths=source_relative ...
+```
+
+## Task-Driven Development
+1. Create feature branch
+2. Run `task init`
+3. Implement changes
+4. Run `task test`
+5. Run `task lint`
+6. Submit pull request
+
+## Task Troubleshooting
+
+### Common Task Issues
+- Ensure Task is installed correctly
+- Check Taskfile syntax
+- Verify Go and protobuf installations
+
+### Getting Task Help
+```bash
+# Task help
+task --help
+
+# Specific task help
+task --help service:backend
+```
+
+## Task Best Practices
+
+- Keep tasks small and focused
+- Use task dependencies
+- Leverage task variables
+- Write self-documenting tasks
+- Maintain cross-platform compatibility
+
+## Task Learning Resources
+
+- [Task Documentation](https://taskfile.dev/)
+- Go module management
+- Protobuf code generation
+- Microservices design patterns
