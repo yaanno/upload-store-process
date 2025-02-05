@@ -1,122 +1,73 @@
-# Upload, Store, and Process Microservices Project
+# Upload Store Process
 
 ## Project Overview
-A learning project demonstrating a microservices architecture for file upload, storage, and processing.
 
-## Architecture
+### Purpose
+A learning project to explore microservices architecture through a file storage and processing system.
+
+### Core Objectives
+- Implement a distributed file upload and processing service
+- Learn microservices communication patterns
+- Explore event-driven architectures
+- Practice Go programming and system design
+
+## System Components
 
 ### Services
-1. **API Service**
-   - Exposes HTTP endpoints
-   - Validates incoming requests
-   - Coordinates upload process
-   - Manages authentication
+1. **Backend Service**
+   - Coordinate file upload workflow
+   - Manage user interactions
 
 2. **Storage Service**
-   - Manages file storage
-   - Generates secure upload locations
-   - Handles file persistence
-   - Triggers file processing
+   - Handle file storage
+   - Manage file metadata
+   - Implement compression
 
 3. **Processor Service**
-   - Processes uploaded files
-   - Receives tasks via message queue
-   - Handles file transformations
-
-### Communication Patterns
-- API ↔ Storage Service: gRPC
-- Storage Service → Processor Service: Message Queue (RabbitMQ/NATS)
+   - Process uploaded files
+   - Extract metadata
+   - Perform basic text transformations
 
 ## Technology Stack
-- Language: Go (Golang) 1.21
-- Containerization: Docker
-- Inter-Service Communication: 
-  - gRPC
-  - Message Queue
-- Monorepo Structure
 
-## Project Structure
+- **Language**: Go (Golang) 1.21+
+- **Communication**: gRPC, Message Queues
+- **Database**: SQLite
+- **Containerization**: Docker
+
+## Quick Start
+
+### Prerequisites
+- Go 1.21+
+- Docker
+- Make
+
+### Running the Project
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/upload-store-process.git
+
+# Navigate to project directory
+cd upload-store-process
+
+# Build and run services
+make build
+make run
 ```
-upload-store-process/
-│
-├── go.work                 # Go workspace configuration
-│
-├── services/               # Service implementations
-│   ├── api-service/
-│   ├── storage-service/
-│   └── processor-service/
-│
-├── proto/                  # gRPC service definitions
-│   ├── common.proto
-│   ├── api_service.proto
-│   ├── storage_service.proto
-│   └── processor_service.proto
-│
-└── shared/                 # Potential shared packages
-```
 
-## API Contracts
-- Defined using Protocol Buffers (protobuf)
-- gRPC-based inter-service communication
-- Contracts located in `proto/` directory
-  - `common.proto`: Shared types
-  - `api_service.proto`: API service endpoints
-  - `storage_service.proto`: Storage service methods
-  - `processor_service.proto`: File processing service
+## Learning Focus
 
-## Development Roadmap
-- [x] Project structure setup
-- [ ] Define gRPC contracts
-- [ ] Implement basic service skeletons
-- [ ] Set up message queue
-- [ ] Implement file upload logic
-- [ ] Add authentication
-- [ ] Create Docker configurations
-- [ ] Implement error handling
-- [ ] Add logging and monitoring
-
-## Local Development
-1. Ensure Go 1.22+ is installed
-2. Clone the repository
-3. Install protobuf tools:
-   ```bash
-   brew install protobuf
-   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-   ```
-4. Generate proto code:
-   ```bash
-   protoc --go_out=proto/gen --go_opt=paths=source_relative \
-          --go-grpc_out=proto/gen --go-grpc_opt=paths=source_relative \
-          proto/*.proto
-   ```
-
-## Docker Deployment
-1. Build and run services:
-   ```bash
-   docker-compose up --build
-   ```
-
-### Service Status
-- [x] Storage Service: Basic gRPC implementation
-- [ ] API Service: Pending implementation
-- [ ] Processor Service: Pending implementation
-
-## Learning Objectives
 - Microservices architecture
-- Go programming
-- gRPC and message queue communication
-- Containerization
-- Distributed system design
+- Event-driven communication
+- Basic distributed systems concepts
+- File handling and processing
 
-## Future Improvements
-- Add more robust error handling
-- Implement comprehensive logging
-- Create monitoring dashboards
-- Add more advanced processing capabilities
+## Documentation
 
-## Contributing
-Contributions, issues, and feature requests are welcome!
+- [Architecture Details](docs/ARCHITECTURE.md)
+- [Detailed Requirements](docs/REQUIREMENTS.md)
+- [Development Guide](docs/DEVELOPMENT.md)
 
 ## License
-[To be determined]
+
+MIT License
