@@ -33,7 +33,24 @@ tasks:
       - go test ./tests/unit/...
       - go test ./tests/integration/...
       - go test ./tests/performance/...
-
+  services:up:
+    desc: Start all services
+    cmds:
+      - task services:upload
+      - task services:storage
+      - task services:processor
+  services:upload:
+    desc: Start FileUpload service
+    cmds:
+      - go run ./services/file-upload-service/cmd/server/main.go
+  services:storage:
+    desc: Start FileStorage service
+    cmds:
+      - go run ./services/file-storage-service/cmd/server/main.go
+  services:processor:
+    desc: Start FileProcessor service
+    cmds:
+      - go run ./services/file-processor-service/cmd/server/main.go
   test:unit:
     desc: Run unit tests
     cmds:

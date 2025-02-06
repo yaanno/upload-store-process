@@ -27,5 +27,38 @@ func (s *Storage) Validate() error {
 		return fmt.Errorf("original filename is required")
 	}
 
+	if s.FileMetadata.FileSizeBytes <= 0 {
+		return fmt.Errorf("file size must be greater than 0")
+	}
+
+	if s.FileMetadata.FileType == "" {
+		return fmt.Errorf("file type is required")
+	}
+
+	if s.FileMetadata.UploadTimestamp <= 0 {
+		return fmt.Errorf("upload timestamp must be greater than 0")
+	}
+
+	if s.FileMetadata.StoragePath == "" {
+		return fmt.Errorf("storage path is required")
+	}
+
+	if s.FileMetadata.UserId == "" {
+		return fmt.Errorf("user ID is required")
+	}
+
+	if s.ProcessingStatus == "" {
+		return fmt.Errorf("processing status is required")
+	}
+
+	if s.StoragePath == "" {
+		return fmt.Errorf("storage path is required")
+	}
+
 	return nil
+}
+
+func (s *Storage) String() string {
+	return fmt.Sprintf("ID: %s, FileMetadata: %s, StoragePath: %s, ProcessingStatus: %s, CreatedAt: %s, UpdatedAt: %s",
+		s.ID, s.FileMetadata, s.StoragePath, s.ProcessingStatus, s.CreatedAt, s.UpdatedAt)
 }

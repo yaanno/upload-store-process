@@ -37,4 +37,23 @@ func NewSQLiteStorageRepository(db *sql.DB) *SQLiteStorageRepository {
 	return &SQLiteStorageRepository{db: db}
 }
 
-// Implement repository methods...
+// Implement repository methods
+func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Storage) error {
+	// Implement store logic
+	return nil
+}
+
+func (r *SQLiteStorageRepository) FindByID(ctx context.Context, fileID string) (*models.Storage, error) {
+	// Implement find by ID logic
+	return nil, nil
+}
+
+func (r *SQLiteStorageRepository) List(ctx context.Context, userID string, page, pageSize int) ([]*models.Storage, int, error) {
+	// Implement list logic
+	return nil, 0, nil
+}
+
+func (r *SQLiteStorageRepository) Delete(ctx context.Context, fileID, userID string) error {
+	// Implement delete logic
+	return nil
+}
