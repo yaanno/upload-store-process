@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"io"
+
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
@@ -52,16 +54,55 @@ func (m *MockFileMetadataRepository) ListFileMetadata(ctx context.Context, opts 
 	return args.Get(0).([]*models.FileMetadataRecord), args.Error(1)
 }
 
+// MockStorageProvider implements FileStorageProvider for testing
+type MockStorageProvider struct {
+	mock.Mock
+}
+
+func (m *MockStorageProvider) StoreFile(
+	ctx context.Context,
+	fileID string,
+	originalFilename string,
+	fileReader io.Reader,
+) (string, error) {
+	args := m.Called(ctx, fileID, originalFilename, fileReader)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockStorageProvider) RetrieveFile(
+	ctx context.Context,
+	storagePath string,
+) (io.Reader, error) {
+	args := m.Called(ctx, storagePath)
+	return args.Get(0).(io.Reader), args.Error(1)
+}
+
+func (m *MockStorageProvider) DeleteFile(
+	ctx context.Context,
+	storagePath string,
+) error {
+	args := m.Called(ctx, storagePath)
+	return args.Error(0)
+}
+
+func (m *MockStorageProvider) GenerateStoragePath(
+	fileID string,
+	originalFilename string,
+) string {
+	args := m.Called(fileID, originalFilename)
+	return args.String(0)
+}
+
 // Helper function to create a test logger
-func createTestLogger() *logger.Logger {
-	return &logger.Logger{} // You might want to use a mock or no-op logger in tests
+func createTestLogger() logger.Logger {
+	return logger.Logger{} // You might want to use a mock or no-op logger in tests
 }
 
 func TestPrepareUpload(t *testing.T) {
 	testCases := []struct {
 		name           string
 		request        *storagev1.PrepareUploadRequest
-		mockBehavior   func(*MockFileMetadataRepository)
+		mockBehavior   func(*MockFileMetadataRepository, *MockStorageProvider)
 		expectedError  bool
 		expectedErrMsg string
 	}{
@@ -71,7 +112,12 @@ func TestPrepareUpload(t *testing.T) {
 				Filename:      "test.txt",
 				FileSizeBytes: 1024,
 			},
-			mockBehavior: func(mfmr *MockFileMetadataRepository) {
+			mockBehavior: func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {
+				// Expect storage path generation
+				msp.On("GenerateStoragePath", mock.Anything, "test.txt").
+					Return("uploads/2025/02/06/test_file_id.txt")
+
+				// Expect metadata creation
 				mfmr.On("CreateFileMetadata", mock.Anything, mock.Anything).Return(nil)
 			},
 			expectedError: false,
@@ -79,7 +125,7 @@ func TestPrepareUpload(t *testing.T) {
 		{
 			name:           "Nil Request",
 			request:        nil,
-			mockBehavior:   func(mfmr *MockFileMetadataRepository) {},
+			mockBehavior:   func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {},
 			expectedError:  true,
 			expectedErrMsg: "upload request cannot be nil",
 		},
@@ -89,7 +135,7 @@ func TestPrepareUpload(t *testing.T) {
 				Filename:      "",
 				FileSizeBytes: 1024,
 			},
-			mockBehavior:   func(mfmr *MockFileMetadataRepository) {},
+			mockBehavior:   func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {},
 			expectedError:  true,
 			expectedErrMsg: "filename is required",
 		},
@@ -99,7 +145,7 @@ func TestPrepareUpload(t *testing.T) {
 				Filename:      "test.txt",
 				FileSizeBytes: 0,
 			},
-			mockBehavior:   func(mfmr *MockFileMetadataRepository) {},
+			mockBehavior:   func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {},
 			expectedError:  true,
 			expectedErrMsg: "invalid file size",
 		},
@@ -107,14 +153,16 @@ func TestPrepareUpload(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create mock repository
+			// Create mocks
 			mockRepo := new(MockFileMetadataRepository)
+			mockStorageProvider := new(MockStorageProvider)
+			mockLogger := createTestLogger()
 
-			// Set up mock behavior
-			tc.mockBehavior(mockRepo)
+			// Set up mock behaviors
+			tc.mockBehavior(mockRepo, mockStorageProvider)
 
-			// Create service
-			service := NewFileStorageService(mockRepo, createTestLogger())
+			// Create service with mocks
+			service := NewFileStorageService(mockRepo, mockLogger, mockStorageProvider)
 
 			// Call method
 			resp, err := service.PrepareUpload(context.Background(), tc.request)
@@ -129,12 +177,13 @@ func TestPrepareUpload(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
-				// assert.NotEmpty(t, 1)
-				// assert.NotEmpty(t, "")
+				assert.NotEmpty(t, resp.UploadToken)
+				assert.NotEmpty(t, resp.StoragePath)
 			}
 
 			// Verify mock expectations
 			mockRepo.AssertExpectations(t)
+			mockStorageProvider.AssertExpectations(t)
 		})
 	}
 }
@@ -143,7 +192,7 @@ func TestCompleteUpload(t *testing.T) {
 	testCases := []struct {
 		name           string
 		request        *storagev1.CompleteUploadRequest
-		mockBehavior   func(*MockFileMetadataRepository)
+		mockBehavior   func(*MockFileMetadataRepository, *MockStorageProvider)
 		expectedError  bool
 		expectedErrMsg string
 		expectedFileID string
@@ -158,7 +207,7 @@ func TestCompleteUpload(t *testing.T) {
 					UploadTimestamp:  time.Now().Unix(),
 				},
 			},
-			mockBehavior: func(mfmr *MockFileMetadataRepository) {
+			mockBehavior: func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {
 				// Mock creating metadata with specific file ID
 				mfmr.On("CreateFileMetadata", mock.Anything, mock.MatchedBy(func(metadata *models.FileMetadataRecord) bool {
 					return metadata.ID == "file_123"
@@ -170,7 +219,7 @@ func TestCompleteUpload(t *testing.T) {
 		{
 			name:           "Nil Request",
 			request:        nil,
-			mockBehavior:   func(mfmr *MockFileMetadataRepository) {},
+			mockBehavior:   func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {},
 			expectedError:  true,
 			expectedErrMsg: "complete upload request cannot be nil",
 		},
@@ -182,7 +231,7 @@ func TestCompleteUpload(t *testing.T) {
 					OriginalFilename: "test_file.txt",
 				},
 			},
-			mockBehavior:   func(mfmr *MockFileMetadataRepository) {},
+			mockBehavior:   func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {},
 			expectedError:  true,
 			expectedErrMsg: "upload ID is required",
 		},
@@ -190,14 +239,16 @@ func TestCompleteUpload(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create mock repository
+			// Create mocks
 			mockRepo := new(MockFileMetadataRepository)
+			mockStorageProvider := new(MockStorageProvider)
+			mockLogger := createTestLogger()
 
-			// Set up mock behavior
-			tc.mockBehavior(mockRepo)
+			// Set up mock behaviors
+			tc.mockBehavior(mockRepo, mockStorageProvider)
 
-			// Create service
-			service := NewFileStorageService(mockRepo, createTestLogger())
+			// Create service with mocks
+			service := NewFileStorageService(mockRepo, mockLogger, mockStorageProvider)
 
 			// Call method
 			resp, err := service.CompleteUpload(context.Background(), tc.request)
@@ -218,6 +269,7 @@ func TestCompleteUpload(t *testing.T) {
 
 			// Verify mock expectations
 			mockRepo.AssertExpectations(t)
+			mockStorageProvider.AssertExpectations(t)
 		})
 	}
 }
@@ -226,7 +278,7 @@ func TestListFiles(t *testing.T) {
 	testCases := []struct {
 		name           string
 		request        *storagev1.ListFilesRequest
-		mockBehavior   func(*MockFileMetadataRepository)
+		mockBehavior   func(*MockFileMetadataRepository, *MockStorageProvider)
 		expectedError  bool
 		expectedErrMsg string
 		expectedCount  int
@@ -238,7 +290,7 @@ func TestListFiles(t *testing.T) {
 				PageSize: 10,
 				Page:     1,
 			},
-			mockBehavior: func(mfmr *MockFileMetadataRepository) {
+			mockBehavior: func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {
 				mockFileMetadata := []*models.FileMetadataRecord{
 					{
 						ID: "file1",
@@ -270,7 +322,7 @@ func TestListFiles(t *testing.T) {
 				PageSize: 0,
 				Page:     1,
 			},
-			mockBehavior: func(mfmr *MockFileMetadataRepository) {
+			mockBehavior: func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {
 				mockFileMetadata := []*models.FileMetadataRecord{
 					{
 						ID: "file1",
@@ -291,7 +343,7 @@ func TestListFiles(t *testing.T) {
 		{
 			name:           "Nil Request",
 			request:        nil,
-			mockBehavior:   func(mfmr *MockFileMetadataRepository) {},
+			mockBehavior:   func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {},
 			expectedError:  true,
 			expectedErrMsg: "list files request cannot be nil",
 		},
@@ -299,14 +351,16 @@ func TestListFiles(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create mock repository
+			// Create mocks
 			mockRepo := new(MockFileMetadataRepository)
+			mockStorageProvider := new(MockStorageProvider)
+			mockLogger := createTestLogger()
 
-			// Set up mock behavior
-			tc.mockBehavior(mockRepo)
+			// Set up mock behaviors
+			tc.mockBehavior(mockRepo, mockStorageProvider)
 
-			// Create service
-			service := NewFileStorageService(mockRepo, createTestLogger())
+			// Create service with mocks
+			service := NewFileStorageService(mockRepo, mockLogger, mockStorageProvider)
 
 			// Call method
 			resp, err := service.ListFiles(context.Background(), tc.request)
@@ -328,17 +382,20 @@ func TestListFiles(t *testing.T) {
 
 			// Verify mock expectations
 			mockRepo.AssertExpectations(t)
+			mockStorageProvider.AssertExpectations(t)
 		})
 	}
 }
 
 func TestPrepareUploadBasic(t *testing.T) {
 	mockRepo := new(MockFileMetadataRepository)
-	mockLogger := &logger.Logger{}
+	mockStorageProvider := new(MockStorageProvider)
+	mockLogger := createTestLogger()
 
 	service := &FileStorageService{
-		repo:   mockRepo,
-		logger: mockLogger,
+		repo:            mockRepo,
+		logger:          mockLogger,
+		storageProvider: mockStorageProvider,
 	}
 
 	ctx := context.Background()
@@ -346,6 +403,9 @@ func TestPrepareUploadBasic(t *testing.T) {
 		Filename:      "test.txt",
 		FileSizeBytes: 1024,
 	}
+
+	mockStorageProvider.On("GenerateStoragePath", mock.Anything, "test.txt").
+		Return("uploads/2025/02/06/test_file_id.txt")
 
 	mockRepo.On("CreateFileMetadata", mock.Anything, mock.Anything).Return(nil)
 
@@ -356,12 +416,16 @@ func TestPrepareUploadBasic(t *testing.T) {
 	assert.NotEmpty(t, resp.StoragePath)
 
 	mockRepo.AssertExpectations(t)
+	mockStorageProvider.AssertExpectations(t)
 }
 
 func TestCompleteUploadBasic(t *testing.T) {
 	// Create mock repository
 	mockRepo := new(MockFileMetadataRepository)
 	mockRepo.On("CreateFileMetadata", mock.Anything, mock.Anything).Return(nil)
+
+	// Create mock storage provider
+	mockStorageProvider := new(MockStorageProvider)
 
 	ctx := context.Background()
 	req := &storagev1.CompleteUploadRequest{
@@ -374,7 +438,7 @@ func TestCompleteUploadBasic(t *testing.T) {
 	}
 
 	// Create service
-	service := NewFileStorageService(mockRepo, createTestLogger())
+	service := NewFileStorageService(mockRepo, createTestLogger(), mockStorageProvider)
 
 	// Call method
 	resp, err := service.CompleteUpload(ctx, req)
@@ -387,15 +451,18 @@ func TestCompleteUploadBasic(t *testing.T) {
 
 	// Verify mock expectations
 	mockRepo.AssertExpectations(t)
+	mockStorageProvider.AssertExpectations(t)
 }
 
 func TestListFilesBasic(t *testing.T) {
 	mockRepo := new(MockFileMetadataRepository)
-	mockLogger := &logger.Logger{}
+	mockStorageProvider := new(MockStorageProvider)
+	mockLogger := createTestLogger()
 
 	service := &FileStorageService{
-		repo:   mockRepo,
-		logger: mockLogger,
+		repo:            mockRepo,
+		logger:          mockLogger,
+		storageProvider: mockStorageProvider,
 	}
 
 	ctx := context.Background()
@@ -425,4 +492,5 @@ func TestListFilesBasic(t *testing.T) {
 	assert.Equal(t, int32(1), resp.TotalPages)
 
 	mockRepo.AssertExpectations(t)
+	mockStorageProvider.AssertExpectations(t)
 }

@@ -20,24 +20,27 @@ import (
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
 // FileStorageService implements the gRPC service
 type FileStorageService struct {
-	storagev1.UnimplementedFileStorageServiceServer
-	repo   repository.FileMetadataRepository
-	logger *logger.Logger
+	repo            repository.FileMetadataRepository
+	logger          logger.Logger
+	storageProvider storage.FileStorageProvider
 }
 
 // NewFileStorageService creates a new instance of FileStorageService
 func NewFileStorageService(
 	repo repository.FileMetadataRepository,
-	logger *logger.Logger,
+	logger logger.Logger,
+	storageProvider storage.FileStorageProvider,
 ) *FileStorageService {
 	return &FileStorageService{
-		repo:   repo,
-		logger: logger,
+		repo:            repo,
+		logger:          logger,
+		storageProvider: storageProvider,
 	}
 }
 
@@ -59,21 +62,32 @@ func (s *FileStorageService) PrepareUpload(
 		return nil, status.Errorf(codes.InvalidArgument, "invalid file size")
 	}
 
+	// Validate file type
+	if !isAllowedFileType(req.Filename) {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported file type")
+	}
+
 	// Validate file size
 	if req.FileSizeBytes > 500*1024*1024 { // 500 MB
 		return nil, status.Errorf(codes.InvalidArgument, "file too large")
 	}
 
-	// Validate file type
-	if !isAllowedFileType(req.Filename) {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid file type")
-	}
-
-	// Generate a unique file ID (you might want to use a more robust ID generation method)
+	// Generate secure file ID
 	fileID, err := generateSecureFileID()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to generate file ID: %v", err)
+		s.logger.Error().Err(err).Msg("Failed to generate file ID")
+		return nil, status.Errorf(codes.Internal, "failed to generate file ID")
 	}
+
+	// Generate upload token
+	uploadToken, err := generateSecureUploadToken(fileID)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to generate upload token")
+		return nil, status.Errorf(codes.Internal, "failed to generate upload token")
+	}
+
+	// Generate storage path using the storage provider
+	storagePath := s.storageProvider.GenerateStoragePath(fileID, req.Filename)
 
 	// Prepare initial metadata
 	initialMetadata := &sharedv1.FileMetadata{
@@ -85,32 +99,25 @@ func (s *FileStorageService) PrepareUpload(
 		UserId:           extractUserID(ctx), // Implement user context extraction
 	}
 
-	// Convert to internal model
-	storageModel := &models.FileMetadataRecord{
+	// Create initial metadata record
+	metadataRecord := &models.FileMetadataRecord{
 		ID:               fileID,
 		Metadata:         initialMetadata,
-		StoragePath:      generateStoragePath(fileID, req.Filename),
+		StoragePath:      storagePath,
 		ProcessingStatus: "PENDING",
 		CreatedAt:        time.Now().UTC(),
 		UpdatedAt:        time.Now().UTC(),
 	}
 
 	// Store initial metadata
-	if err := s.repo.CreateFileMetadata(ctx, storageModel); err != nil {
-		s.logger.Error().Err(err).Msg("Failed to store file metadata")
-		return nil, status.Errorf(codes.Internal, "failed to prepare upload")
+	if err := s.repo.CreateFileMetadata(ctx, metadataRecord); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to create initial file metadata")
+		return nil, status.Errorf(codes.Internal, "failed to create file metadata")
 	}
 
-	// Generate a presigned URL or upload token (implementation depends on your storage strategy)
-	uploadToken, err := generateSecureUploadToken(fileID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to generate upload URL")
-	}
-
-	// TODO: add response fields
 	return &storagev1.PrepareUploadResponse{
 		UploadToken: uploadToken,
-		StoragePath: generateStoragePath(fileID, req.Filename),
+		StoragePath: storagePath,
 		BaseResponse: &sharedv1.Response{
 			Message: "Upload prepared successfully",
 		},
@@ -147,6 +154,7 @@ func (s *FileStorageService) CompleteUpload(
 	// Store metadata
 	err := s.repo.CreateFileMetadata(ctx, metadata)
 	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to store file metadata")
 		return nil, status.Errorf(codes.Internal, "failed to store file metadata: %v", err)
 	}
 
@@ -238,15 +246,9 @@ func generateSecureFileID() (string, error) {
 	return base64.URLEncoding.EncodeToString(hash[:]), nil
 }
 
-func generateStoragePath(fileId string, fileName string) string {
-	now := time.Now()
-	return filepath.Join(
-		"uploads",
-		fmt.Sprintf("%d", now.Year()),
-		fmt.Sprintf("%02d", now.Month()),
-		fmt.Sprintf("%02d", now.Day()),
-		fmt.Sprintf("%s_%s", fileId, fileName),
-	)
+// generateStoragePath generates a storage path using the storage provider
+func (s *FileStorageService) generateStoragePath(fileId string, fileName string) string {
+	return s.storageProvider.GenerateStoragePath(fileId, fileName)
 }
 
 // generateSecureUploadToken creates a time-limited, secure upload token
