@@ -33,12 +33,16 @@ type StorageRepository interface {
 
 // SQLiteStorageRepository implements StorageRepository for SQLite
 type SQLiteStorageRepository struct {
-	db *sql.DB
+	db       *sql.DB
+	migrator *DatabaseMigrator
 }
 
 // NewSQLiteStorageRepository creates a new SQLite-based repository
-func NewSQLiteStorageRepository(db *sql.DB) *SQLiteStorageRepository {
-	return &SQLiteStorageRepository{db: db}
+func NewSQLiteStorageRepository(migrator *DatabaseMigrator) *SQLiteStorageRepository {
+	return &SQLiteStorageRepository{
+		db:       migrator.GetDB(),
+		migrator: migrator,
+	}
 }
 
 // Store saves file metadata with transaction support and upsert logic

@@ -3,6 +3,7 @@ module github.com/yaanno/upload-store-process
 go 1.23.5
 
 require (
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/viper v1.19.0
 	google.golang.org/grpc v1.70.0
