@@ -6,20 +6,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
 var (
 	// ErrInvalidInput represents an error for invalid input
 	ErrInvalidInput = errors.New("invalid input")
-	
+
 	// ErrFileNotFound represents an error when a file is not found
 	ErrFileNotFound = errors.New("file not found")
-	
+
 	// ErrDatabaseOperation represents a generic database operation error
 	ErrDatabaseOperation = errors.New("database operation failed")
 )
@@ -34,26 +34,24 @@ type FileMetadataRepository interface {
 
 // FileMetadataListOptions provides filtering and pagination for file metadata listing
 type FileMetadataListOptions struct {
-	UserID     string
-	Limit      int
-	Offset     int
-	SortBy     string
-	SortOrder  string
+	UserID    string
+	Limit     int
+	Offset    int
+	SortBy    string
+	SortOrder string
 }
 
 // SQLiteFileMetadataRepository implements FileMetadataRepository for SQLite
 type SQLiteFileMetadataRepository struct {
-	db       *sql.DB
-	migrator *DatabaseMigrator
-	logger   *slog.Logger
+	db     *sql.DB
+	logger logger.Logger
 }
 
 // NewSQLiteFileMetadataRepository creates a new SQLite-based file metadata repository
-func NewSQLiteFileMetadataRepository(migrator *DatabaseMigrator, logger *slog.Logger) *SQLiteFileMetadataRepository {
+func NewSQLiteFileMetadataRepository(db *sql.DB, logger logger.Logger) *SQLiteFileMetadataRepository {
 	return &SQLiteFileMetadataRepository{
-		db:       migrator.GetDB(),
-		migrator: migrator,
-		logger:   logger,
+		db:     db,
+		logger: logger,
 	}
 }
 
@@ -97,9 +95,10 @@ func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, m
 			panic(p)
 		} else if err != nil {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				r.logger.Error("Failed to rollback transaction", 
-					slog.String("original_error", err.Error()),
-					slog.String("rollback_error", rollbackErr.Error()))
+				r.logger.Error().
+					Err(rollbackErr).
+					Str("original_error", err.Error()).
+					Msg("Failed to rollback transaction")
 			}
 		}
 	}()
@@ -142,7 +141,11 @@ func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, m
 	// Execute query with prepared statement for better performance
 	stmt, err := tx.PrepareContext(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to prepare statement: %w", ErrDatabaseOperation)
+		r.logger.Error().
+			Err(err).
+			Str("fileId", metadata.ID).
+			Msg("Failed to prepare create file metadata statement")
+		return fmt.Errorf("prepare create file metadata: %w", err)
 	}
 	defer stmt.Close()
 
@@ -163,17 +166,28 @@ func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, m
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to store file metadata: %w", ErrDatabaseOperation)
+		r.logger.Error().
+			Err(err).
+			Str("fileId", metadata.ID).
+			Str("filename", metadata.Metadata.OriginalFilename).
+			Msg("Failed to create file metadata")
+		return fmt.Errorf("create file metadata: %w", err)
 	}
 
 	// Commit transaction
 	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", ErrDatabaseOperation)
+		r.logger.Error().
+			Err(err).
+			Str("fileId", metadata.ID).
+			Msg("Failed to commit transaction")
+		return fmt.Errorf("commit transaction: %w", err)
 	}
 
-	r.logger.Info("File metadata stored successfully", 
-		slog.String("file_id", metadata.ID),
-		slog.String("storage_path", metadata.StoragePath))
+	r.logger.Info().
+		Str("fileId", metadata.ID).
+		Str("filename", metadata.Metadata.OriginalFilename).
+		Msg("File metadata created successfully")
+
 	return nil
 }
 
@@ -216,13 +230,15 @@ func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Cont
 	)
 
 	if err == sql.ErrNoRows {
-		r.logger.Info("File metadata not found", 
-			slog.String("file_id", fileID))
+		r.logger.Info().
+			Str("fileId", fileID).
+			Msg("File metadata not found")
 		return nil, ErrFileNotFound
 	} else if err != nil {
-		r.logger.Error("Error retrieving file metadata", 
-			slog.String("file_id", fileID),
-			slog.String("error", err.Error()))
+		r.logger.Error().
+			Err(err).
+			Str("fileId", fileID).
+			Msg("Error retrieving file metadata")
 		return nil, fmt.Errorf("failed to retrieve file metadata: %w", err)
 	}
 
@@ -230,16 +246,19 @@ func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Cont
 	if len(fileMetadataJSON) > 0 {
 		metadata.Metadata = &sharedv1.FileMetadata{}
 		if err := json.Unmarshal(fileMetadataJSON, metadata.Metadata); err != nil {
-			r.logger.Error("Error unmarshaling file metadata", 
-				slog.String("file_id", fileID),
-				slog.String("error", err.Error()))
+			r.logger.Error().
+				Err(err).
+				Str("fileId", fileID).
+				Msg("Error unmarshaling file metadata")
 			return nil, fmt.Errorf("failed to unmarshal file metadata: %w", err)
 		}
 		metadata.Metadata.UserId = userID
 	}
 
-	r.logger.Info("File metadata retrieved successfully", 
-		slog.String("file_id", fileID))
+	r.logger.Info().
+		Str("fileId", fileID).
+		Msg("File metadata retrieved successfully")
+
 	return metadata, nil
 }
 
@@ -267,9 +286,10 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 	var totalFiles int
 	err := r.db.QueryRowContext(ctx, countQuery, opts.UserID).Scan(&totalFiles)
 	if err != nil {
-		r.logger.Error("Error counting file metadata", 
-			slog.String("user_id", opts.UserID),
-			slog.String("error", err.Error()))
+		r.logger.Error().
+			Err(err).
+			Str("userId", opts.UserID).
+			Msg("Error counting file metadata")
 		return nil, fmt.Errorf("failed to count file metadata: %w", err)
 	}
 
@@ -290,9 +310,10 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 
 	rows, err := r.db.QueryContext(ctx, query, opts.UserID, opts.Limit, offset)
 	if err != nil {
-		r.logger.Error("Error listing file metadata", 
-			slog.String("user_id", opts.UserID),
-			slog.String("error", err.Error()))
+		r.logger.Error().
+			Err(err).
+			Str("userId", opts.UserID).
+			Msg("Error listing file metadata")
 		return nil, fmt.Errorf("failed to list file metadata: %w", err)
 	}
 	defer rows.Close()
@@ -312,15 +333,17 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 			&metadata.UpdatedAt,
 		)
 		if err != nil {
-			r.logger.Error("Error scanning file metadata row", 
-				slog.String("error", err.Error()))
+			r.logger.Error().
+				Err(err).
+				Msg("Error scanning file metadata row")
 			continue
 		}
 		if len(fileMetadataJSON) > 0 {
 			metadata.Metadata = &sharedv1.FileMetadata{}
 			if err := json.Unmarshal(fileMetadataJSON, metadata.Metadata); err != nil {
-				r.logger.Error("Error unmarshaling file metadata", 
-					slog.String("error", err.Error()))
+				r.logger.Error().
+					Err(err).
+					Msg("Error unmarshaling file metadata")
 				continue
 			}
 			metadata.Metadata.UserId = userID
@@ -329,14 +352,17 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 	}
 
 	if err = rows.Err(); err != nil {
-		r.logger.Error("Error in file metadata rows", 
-			slog.String("error", err.Error()))
+		r.logger.Error().
+			Err(err).
+			Msg("Error in file metadata rows")
 		return nil, fmt.Errorf("error processing file metadata rows: %w", err)
 	}
 
-	r.logger.Info("File metadata listed successfully", 
-		slog.String("user_id", opts.UserID),
-		slog.Int("total_files", totalFiles))
+	r.logger.Info().
+		Str("userId", opts.UserID).
+		Int("totalFiles", totalFiles).
+		Msg("File metadata listed successfully")
+
 	return fileMetadataRecords, nil
 }
 
@@ -351,28 +377,33 @@ func (r *SQLiteFileMetadataRepository) RemoveFileMetadata(ctx context.Context, f
 	query := `DELETE FROM file_metadata WHERE id = ?`
 	result, err := r.db.ExecContext(ctx, query, fileID)
 	if err != nil {
-		r.logger.Error("Error removing file metadata", 
-			slog.String("file_id", fileID),
-			slog.String("error", err.Error()))
+		r.logger.Error().
+			Err(err).
+			Str("fileId", fileID).
+			Msg("Error removing file metadata")
 		return fmt.Errorf("failed to remove file metadata: %w", ErrDatabaseOperation)
 	}
 
 	// Check if any rows were affected
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		r.logger.Error("Error checking rows affected", 
-			slog.String("file_id", fileID),
-			slog.String("error", err.Error()))
+		r.logger.Error().
+			Err(err).
+			Str("fileId", fileID).
+			Msg("Error checking rows affected")
 		return fmt.Errorf("error checking deletion: %w", ErrDatabaseOperation)
 	}
 
 	if rowsAffected == 0 {
-		r.logger.Info("No file metadata found with ID", 
-			slog.String("file_id", fileID))
+		r.logger.Info().
+			Str("fileId", fileID).
+			Msg("No file metadata found with ID")
 		return ErrFileNotFound
 	}
 
-	r.logger.Info("File metadata removed successfully", 
-		slog.String("file_id", fileID))
+	r.logger.Info().
+		Str("fileId", fileID).
+		Msg("File metadata removed successfully")
+
 	return nil
 }

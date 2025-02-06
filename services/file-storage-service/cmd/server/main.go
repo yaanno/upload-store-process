@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -55,6 +54,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	wrappedLogger := logger.Logger{Logger: serviceLogger}
+
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
@@ -67,9 +68,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	db := testDatabase.GetDB()
+
 	localFilesystemStorage := storageProvider.NewLocalFilesystemStorage(cfg.Storage.BasePath)
-	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(testDatabase, &slog.Logger{})
-	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, *log, localFilesystemStorage)
+	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
+	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, localFilesystemStorage)
 	storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServiceServer)
 
 	// Graceful shutdown setup

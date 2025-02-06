@@ -2,8 +2,6 @@ package repository
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"testing"
 	"time"
 
@@ -11,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
 func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
@@ -19,8 +18,10 @@ func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
 	require.NoError(t, err)
 	defer migrator.Close()
 
+	db := migrator.GetDB()
+
 	// Create repository
-	repo := NewSQLiteFileMetadataRepository(migrator, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	repo := NewSQLiteFileMetadataRepository(db, logger.Logger{})
 
 	// Prepare test metadata
 	testMetadata := &sharedv1.FileMetadata{
@@ -70,7 +71,7 @@ func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := repo.CreateFileMetadata(context.Background(), tc.metadata)
-			
+
 			if tc.expectError {
 				assert.Error(t, err, "Expected an error")
 			} else {
@@ -81,12 +82,12 @@ func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
 				assert.NoError(t, err, "Error finding stored file")
 				assert.NotNil(t, storedFile, "Stored file should not be nil")
 				assert.Equal(t, tc.metadata.ID, storedFile.ID, "Stored file ID should match")
-				
+
 				// Additional metadata verification
 				if tc.metadata.Metadata != nil {
 					assert.NotNil(t, storedFile.Metadata, "File metadata should not be nil")
-					assert.Equal(t, tc.metadata.Metadata.OriginalFilename, 
-						storedFile.Metadata.OriginalFilename, 
+					assert.Equal(t, tc.metadata.Metadata.OriginalFilename,
+						storedFile.Metadata.OriginalFilename,
 						"Original filename should match")
 				}
 			}
@@ -100,8 +101,10 @@ func TestSQLiteFileMetadataRepository_Upsert(t *testing.T) {
 	require.NoError(t, err)
 	defer migrator.Close()
 
+	db := migrator.GetDB()
+
 	// Create repository
-	repo := NewSQLiteFileMetadataRepository(migrator, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	repo := NewSQLiteFileMetadataRepository(db, logger.Logger{})
 
 	// Prepare initial metadata
 	initialMetadata := &sharedv1.FileMetadata{
@@ -154,7 +157,7 @@ func TestSQLiteFileMetadataRepository_Upsert(t *testing.T) {
 	// Retrieve and verify
 	storedFile, err := repo.RetrieveFileMetadataByID(context.Background(), "test-upsert-id")
 	require.NoError(t, err, "Should find updated file")
-	
+
 	assert.Equal(t, "updated_file.txt", storedFile.Metadata.OriginalFilename, "Filename should be updated")
 	assert.Equal(t, "/tmp/updated_file.txt", storedFile.StoragePath, "Storage path should be updated")
 	assert.Equal(t, "PROCESSING", storedFile.ProcessingStatus, "Processing status should be updated")
