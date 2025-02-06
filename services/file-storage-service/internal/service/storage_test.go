@@ -392,7 +392,7 @@ func TestPrepareUploadBasic(t *testing.T) {
 	mockStorageProvider := new(MockStorageProvider)
 	mockLogger := createTestLogger()
 
-	service := &FileStorageService{
+	service := &fileStorageService{
 		repo:            mockRepo,
 		logger:          mockLogger,
 		storageProvider: mockStorageProvider,
@@ -459,7 +459,7 @@ func TestListFilesBasic(t *testing.T) {
 	mockStorageProvider := new(MockStorageProvider)
 	mockLogger := createTestLogger()
 
-	service := &FileStorageService{
+	service := &fileStorageService{
 		repo:            mockRepo,
 		logger:          mockLogger,
 		storageProvider: mockStorageProvider,

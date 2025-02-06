@@ -24,8 +24,18 @@ import (
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
+type FileStorageService interface {
+	CompressFile(context.Context, *storagev1.CompressFileRequest) (*storagev1.CompressFileResponse, error)
+	DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error)
+	GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error)
+	StoreFileMetadata(context.Context, *storagev1.StoreFileMetadataRequest) (*storagev1.StoreFileMetadataResponse, error)
+	ListFiles(context.Context, *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error)
+	PrepareUpload(context.Context, *storagev1.PrepareUploadRequest) (*storagev1.PrepareUploadResponse, error)
+	CompleteUpload(context.Context, *storagev1.CompleteUploadRequest) (*storagev1.CompleteUploadResponse, error)
+}
+
 // FileStorageService implements the gRPC service
-type FileStorageService struct {
+type fileStorageService struct {
 	storagev1.UnimplementedFileStorageServiceServer
 	repo            repository.FileMetadataRepository
 	logger          logger.Logger
@@ -33,22 +43,22 @@ type FileStorageService struct {
 }
 
 // CompressFile implements v1.FileStorageServiceServer.
-func (s *FileStorageService) CompressFile(context.Context, *storagev1.CompressFileRequest) (*storagev1.CompressFileResponse, error) {
+func (s *fileStorageService) CompressFile(context.Context, *storagev1.CompressFileRequest) (*storagev1.CompressFileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompressFile not implemented")
 }
 
 // DeleteFile implements v1.FileStorageServiceServer.
-func (s *FileStorageService) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
+func (s *fileStorageService) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
 }
 
 // GetFileMetadata implements v1.FileStorageServiceServer.
-func (s *FileStorageService) GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
+func (s *fileStorageService) GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFileMetadata not implemented")
 }
 
 // StoreFileMetadata implements v1.FileStorageServiceServer.
-func (s *FileStorageService) StoreFileMetadata(context.Context, *storagev1.StoreFileMetadataRequest) (*storagev1.StoreFileMetadataResponse, error) {
+func (s *fileStorageService) StoreFileMetadata(context.Context, *storagev1.StoreFileMetadataRequest) (*storagev1.StoreFileMetadataResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method StoreFileMetadata not implemented")
 }
 
@@ -57,8 +67,8 @@ func NewFileStorageService(
 	repo repository.FileMetadataRepository,
 	logger logger.Logger,
 	storageProvider storage.FileStorageProvider,
-) *FileStorageService {
-	return &FileStorageService{
+) *fileStorageService {
+	return &fileStorageService{
 		repo:            repo,
 		logger:          logger,
 		storageProvider: storageProvider,
@@ -66,7 +76,7 @@ func NewFileStorageService(
 }
 
 // PrepareUpload prepares a file upload by storing initial metadata
-func (s *FileStorageService) PrepareUpload(
+func (s *fileStorageService) PrepareUpload(
 	ctx context.Context,
 	req *storagev1.PrepareUploadRequest,
 ) (*storagev1.PrepareUploadResponse, error) {
@@ -146,7 +156,7 @@ func (s *FileStorageService) PrepareUpload(
 }
 
 // CompleteUpload finalizes the file upload process
-func (s *FileStorageService) CompleteUpload(
+func (s *fileStorageService) CompleteUpload(
 	ctx context.Context,
 	req *storagev1.CompleteUploadRequest,
 ) (*storagev1.CompleteUploadResponse, error) {
@@ -189,7 +199,7 @@ func (s *FileStorageService) CompleteUpload(
 }
 
 // ListFiles retrieves a list of files for a user
-func (s *FileStorageService) ListFiles(
+func (s *fileStorageService) ListFiles(
 	ctx context.Context,
 	req *storagev1.ListFilesRequest,
 ) (*storagev1.ListFilesResponse, error) {
@@ -265,11 +275,6 @@ func generateSecureFileID() (string, error) {
 
 	// Use URL-safe base64 encoding to ensure safe use in URLs and file systems
 	return base64.URLEncoding.EncodeToString(hash[:]), nil
-}
-
-// generateStoragePath generates a storage path using the storage provider
-func (s *FileStorageService) generateStoragePath(fileId string, fileName string) string {
-	return s.storageProvider.GenerateStoragePath(fileId, fileName)
 }
 
 // generateSecureUploadToken creates a time-limited, secure upload token
@@ -349,3 +354,5 @@ func validateUploadToken(token string, fileID string) bool {
 	// Optionally, you could add additional validation logic here
 	return true
 }
+
+var _ FileStorageService = &fileStorageService{}

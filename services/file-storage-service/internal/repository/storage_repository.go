@@ -407,3 +407,5 @@ func (r *SQLiteFileMetadataRepository) RemoveFileMetadata(ctx context.Context, f
 
 	return nil
 }
+
+var _ FileMetadataRepository = (*SQLiteFileMetadataRepository)(nil)
