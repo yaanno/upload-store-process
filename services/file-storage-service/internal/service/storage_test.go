@@ -68,7 +68,7 @@ func TestPrepareUpload(t *testing.T) {
 		{
 			name: "Successful Upload Preparation",
 			request: &storagev1.PrepareUploadRequest{
-				Filename:      "test.jpg",
+				Filename:      "test.txt",
 				FileSizeBytes: 1024,
 			},
 			mockBehavior: func(mfmr *MockFileMetadataRepository) {
@@ -96,7 +96,7 @@ func TestPrepareUpload(t *testing.T) {
 		{
 			name: "Invalid File Size",
 			request: &storagev1.PrepareUploadRequest{
-				Filename:      "test.jpg",
+				Filename:      "test.txt",
 				FileSizeBytes: 0,
 			},
 			mockBehavior:   func(mfmr *MockFileMetadataRepository) {},
@@ -146,27 +146,26 @@ func TestCompleteUpload(t *testing.T) {
 		mockBehavior   func(*MockFileMetadataRepository)
 		expectedError  bool
 		expectedErrMsg string
+		expectedFileID string
 	}{
 		{
 			name: "Successful Upload Completion",
 			request: &storagev1.CompleteUploadRequest{
 				UploadId: "file_123",
+				FileMetadata: &sharedv1.FileMetadata{
+					OriginalFilename: "test_file.txt",
+					FileSizeBytes:    1024,
+					UploadTimestamp:  time.Now().Unix(),
+				},
 			},
 			mockBehavior: func(mfmr *MockFileMetadataRepository) {
-				// Mock retrieving existing metadata
-				existingMetadata := &models.FileMetadataRecord{
-					ID:               "file_123",
-					ProcessingStatus: "PENDING",
-					Metadata: &sharedv1.FileMetadata{
-						OriginalFilename: "test_file.txt",
-					},
-				}
-				mfmr.On("RetrieveFileMetadataByID", mock.Anything, "file_123").Return(existingMetadata, nil)
-
-				// Mock creating metadata (which is actually an update in this case)
-				mfmr.On("CreateFileMetadata", mock.Anything, mock.Anything).Return(nil)
+				// Mock creating metadata with specific file ID
+				mfmr.On("CreateFileMetadata", mock.Anything, mock.MatchedBy(func(metadata *models.FileMetadataRecord) bool {
+					return metadata.ID == "file_123"
+				})).Return(nil)
 			},
-			expectedError: false,
+			expectedError:  false,
+			expectedFileID: "file_123",
 		},
 		{
 			name:           "Nil Request",
@@ -179,6 +178,9 @@ func TestCompleteUpload(t *testing.T) {
 			name: "Empty Upload ID",
 			request: &storagev1.CompleteUploadRequest{
 				UploadId: "",
+				FileMetadata: &sharedv1.FileMetadata{
+					OriginalFilename: "test_file.txt",
+				},
 			},
 			mockBehavior:   func(mfmr *MockFileMetadataRepository) {},
 			expectedError:  true,
@@ -210,7 +212,7 @@ func TestCompleteUpload(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
-				assert.Equal(t, "file_123", resp.ProcessedFileId)
+				assert.Equal(t, tc.expectedFileID, resp.ProcessedFileId)
 				assert.True(t, resp.ProcessingStarted)
 			}
 
@@ -341,7 +343,7 @@ func TestPrepareUploadBasic(t *testing.T) {
 
 	ctx := context.Background()
 	req := &storagev1.PrepareUploadRequest{
-		Filename:      "test_file.txt",
+		Filename:      "test.txt",
 		FileSizeBytes: 1024,
 	}
 
@@ -357,37 +359,33 @@ func TestPrepareUploadBasic(t *testing.T) {
 }
 
 func TestCompleteUploadBasic(t *testing.T) {
+	// Create mock repository
 	mockRepo := new(MockFileMetadataRepository)
-	mockLogger := createTestLogger()
-
-	service := &FileStorageService{
-		repo:   mockRepo,
-		logger: mockLogger,
-	}
+	mockRepo.On("CreateFileMetadata", mock.Anything, mock.Anything).Return(nil)
 
 	ctx := context.Background()
-	existingMetadata := &models.FileMetadataRecord{
-		ID: "test-file-id",
-		Metadata: &sharedv1.FileMetadata{
+	req := &storagev1.CompleteUploadRequest{
+		UploadId: "file_123",
+		FileMetadata: &sharedv1.FileMetadata{
 			OriginalFilename: "test_file.txt",
+			FileSizeBytes:    1024,
 			UploadTimestamp:  time.Now().Unix(),
 		},
 	}
 
-	req := &storagev1.CompleteUploadRequest{
-		UploadId: "test-file-id",
-	}
+	// Create service
+	service := NewFileStorageService(mockRepo, createTestLogger())
 
-	mockRepo.On("RetrieveFileMetadataByID", mock.Anything, "test-file-id").Return(existingMetadata, nil)
-	mockRepo.On("CreateFileMetadata", mock.Anything, mock.Anything).Return(nil)
-
+	// Call method
 	resp, err := service.CompleteUpload(ctx, req)
 
+	// Validate results
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
-	assert.Equal(t, existingMetadata.ID, resp.ProcessedFileId)
+	assert.Equal(t, "file_123", resp.ProcessedFileId)
 	assert.True(t, resp.ProcessingStarted)
 
+	// Verify mock expectations
 	mockRepo.AssertExpectations(t)
 }
 

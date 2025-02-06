@@ -123,34 +123,39 @@ func (s *FileStorageService) CompleteUpload(
 	req *storagev1.CompleteUploadRequest,
 ) (*storagev1.CompleteUploadResponse, error) {
 	// Validate input
-	if req == nil || req.FileMetadata == nil {
+	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "complete upload request cannot be nil")
 	}
 
+	// Validate upload ID
 	if req.UploadId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "upload ID is required")
 	}
 
-	// Retrieve existing metadata
-	existingMetadata, err := s.repo.RetrieveFileMetadataByID(ctx, req.UploadId)
-	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to retrieve file metadata")
-		return nil, status.Errorf(codes.NotFound, "upload not found")
+	// Validate file metadata
+	if req.FileMetadata == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "file metadata is required")
 	}
 
-	// Update metadata with final details
-	existingMetadata.ProcessingStatus = "COMPLETED"
-	existingMetadata.UpdatedAt = time.Now().UTC()
+	// Prepare metadata for storage
+	metadata := &models.FileMetadataRecord{
+		ID:               req.UploadId, // Use the provided upload ID
+		ProcessingStatus: "COMPLETED",
+		Metadata:         req.FileMetadata,
+	}
 
-	// Update metadata in repository
-	if err := s.repo.CreateFileMetadata(ctx, existingMetadata); err != nil {
-		s.logger.Error().Err(err).Msg("Failed to update file metadata")
-		return nil, status.Errorf(codes.Internal, "failed to complete upload")
+	// Store metadata
+	err := s.repo.CreateFileMetadata(ctx, metadata)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to store file metadata: %v", err)
 	}
 
 	return &storagev1.CompleteUploadResponse{
-		ProcessedFileId:   existingMetadata.ID,
+		ProcessedFileId:   req.UploadId, // Return the same upload ID
 		ProcessingStarted: true,
+		BaseResponse: &sharedv1.Response{
+			Message: "Upload completed successfully",
+		},
 	}, nil
 }
 
