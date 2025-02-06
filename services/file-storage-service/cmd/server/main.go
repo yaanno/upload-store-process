@@ -58,14 +58,19 @@ func main() {
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
+	// TODO: Replace with actual DB initialization
+	testDatabase, err := repository.InitializeTestDatabase()
+	if err != nil {
+		serviceLogger.Error().
+			Err(err).
+			Msg("Failed to initialize test database")
+		os.Exit(1)
+	}
+
 	localFilesystemStorage := storageProvider.NewLocalFilesystemStorage(cfg.Storage.BasePath)
-	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(nil, &slog.Logger{})
+	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(testDatabase, &slog.Logger{})
 	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, *log, localFilesystemStorage)
 	storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServiceServer)
-
-	// TODO: Register service implementations
-	// fileStorageServer := service.NewFileStorageServer(cfg)
-	// storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServer)
 
 	// Graceful shutdown setup
 	go func() {
