@@ -1,0 +1,17 @@
+server:
+  host: 0.0.0.0
+  port: 50051
+
+logging:
+  level: info
+  json_format: true
+  development: false
+
+database:
+  driver: sqlite
+  path: /data/storage.db
+
+nats:
+  servers: 
+    - nats://localhost:4222
+  cluster: upload-store-cluster
