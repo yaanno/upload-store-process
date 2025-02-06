@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 )
@@ -40,7 +41,7 @@ func NewSQLiteStorageRepository(db *sql.DB) *SQLiteStorageRepository {
 	return &SQLiteStorageRepository{db: db}
 }
 
-// Store saves file metadata with secure, unique identifier
+// Store saves file metadata with transaction support and upsert logic
 func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Storage) error {
 	// Validate input
 	if storage == nil {
@@ -52,7 +53,20 @@ func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Sto
 		return fmt.Errorf("invalid storage model: %v", err)
 	}
 
-	// Prepare SQL insert statement
+	// Begin transaction
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %v", err)
+	}
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				log.Printf("Error rolling back transaction: %v", rollbackErr)
+			}
+		}
+	}()
+
+	// Prepare SQL query with upsert logic
 	query := `
 		INSERT INTO files (
 			id, 
@@ -62,21 +76,47 @@ func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Sto
 			created_at, 
 			updated_at
 		) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET 
+			file_metadata = ?,
+			storage_path = ?,
+			processing_status = ?,
+			updated_at = ?
 	`
 
-	// Execute insert
-	_, err := r.db.ExecContext(ctx, query,
+	// Set default values if not provided
+	if storage.CreatedAt.IsZero() {
+		storage.CreatedAt = time.Now().UTC()
+	}
+	storage.UpdatedAt = time.Now().UTC()
+
+	// If no processing status is set, default to pending
+	if storage.ProcessingStatus == "" {
+		storage.ProcessingStatus = "PENDING"
+	}
+
+	// Execute query
+	_, err = tx.ExecContext(ctx, query,
+		// Insert values
 		storage.ID,
 		storage.FileMetadata,
 		storage.StoragePath,
 		storage.ProcessingStatus,
 		storage.CreatedAt,
 		storage.UpdatedAt,
+		// Update values
+		storage.FileMetadata,
+		storage.StoragePath,
+		storage.ProcessingStatus,
+		storage.UpdatedAt,
 	)
 
 	if err != nil {
-		log.Printf("Error storing file metadata: %v", err)
 		return fmt.Errorf("failed to store file metadata: %v", err)
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %v", err)
 	}
 
 	log.Printf("File metadata stored successfully: %s", storage.ID)
