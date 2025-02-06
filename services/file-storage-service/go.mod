@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/yaanno/upload-store-process/services/shared v0.0.0
+    
 	google.golang.org/grpc v1.70.0
 )
 
@@ -39,3 +40,4 @@ require (
 
 // Use local shared module
 replace github.com/yaanno/upload-store-process/services/shared => ../shared
+// replace github.com/yaanno/upload-store-process/gen/go/shared/v1 => ../../shared/gen/go/shared/v1
