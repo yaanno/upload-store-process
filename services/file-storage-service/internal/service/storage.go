@@ -17,13 +17,13 @@ import (
 // FileStorageService implements the gRPC service
 type FileStorageService struct {
 	storagev1.UnimplementedFileStorageServiceServer
-	repo   repository.StorageRepository
+	repo   repository.FileMetadataRepository
 	logger *logger.Logger
 }
 
 // NewFileStorageService creates a new service instance
 func NewFileStorageService(
-	repo repository.StorageRepository,
+	repo repository.FileMetadataRepository,
 	logger *logger.Logger,
 ) *FileStorageService {
 	return &FileStorageService{
@@ -43,13 +43,13 @@ func (s *FileStorageService) StoreFileMetadata(
 	}
 
 	// Convert to internal model
-	storageModel := &models.Storage{
-		FileMetadata: req.Metadata,
-		CreatedAt:    time.Now(),
+	storageModel := &models.FileMetadataRecord{
+		Metadata:  req.Metadata,
+		CreatedAt: time.Now(),
 	}
 
 	// Store metadata
-	if err := s.repo.Store(ctx, storageModel); err != nil {
+	if err := s.repo.CreateFileMetadata(ctx, storageModel); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to store file metadata")
 		return nil, status.Errorf(codes.Internal, "failed to store metadata")
 	}

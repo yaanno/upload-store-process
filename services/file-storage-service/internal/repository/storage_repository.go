@@ -24,16 +24,16 @@ var (
 	ErrDatabaseOperation = errors.New("database operation failed")
 )
 
-// StorageRepository defines the interface for file metadata storage
-type StorageRepository interface {
-	Store(ctx context.Context, storage *models.Storage) error
-	FindByID(ctx context.Context, fileID string) (*models.Storage, error)
-	ListFiles(ctx context.Context, opts *ListFilesOptions) ([]*models.Storage, error)
-	DeleteFile(ctx context.Context, fileID string) error
+// FileMetadataRepository defines the interface for file metadata storage operations
+type FileMetadataRepository interface {
+	CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error
+	RetrieveFileMetadataByID(ctx context.Context, fileID string) (*models.FileMetadataRecord, error)
+	ListFileMetadata(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, error)
+	RemoveFileMetadata(ctx context.Context, fileID string) error
 }
 
-// ListFilesOptions provides filtering and pagination for file listing
-type ListFilesOptions struct {
+// FileMetadataListOptions provides filtering and pagination for file metadata listing
+type FileMetadataListOptions struct {
 	UserID     string
 	Limit      int
 	Offset     int
@@ -41,43 +41,43 @@ type ListFilesOptions struct {
 	SortOrder  string
 }
 
-// SQLiteStorageRepository implements StorageRepository for SQLite
-type SQLiteStorageRepository struct {
+// SQLiteFileMetadataRepository implements FileMetadataRepository for SQLite
+type SQLiteFileMetadataRepository struct {
 	db       *sql.DB
 	migrator *DatabaseMigrator
 	logger   *slog.Logger
 }
 
-// NewSQLiteStorageRepository creates a new SQLite-based repository
-func NewSQLiteStorageRepository(migrator *DatabaseMigrator, logger *slog.Logger) *SQLiteStorageRepository {
-	return &SQLiteStorageRepository{
+// NewSQLiteFileMetadataRepository creates a new SQLite-based file metadata repository
+func NewSQLiteFileMetadataRepository(migrator *DatabaseMigrator, logger *slog.Logger) *SQLiteFileMetadataRepository {
+	return &SQLiteFileMetadataRepository{
 		db:       migrator.GetDB(),
 		migrator: migrator,
 		logger:   logger,
 	}
 }
 
-// Store saves file metadata with transaction support and upsert logic
-func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Storage) error {
+// CreateFileMetadata saves file metadata with transaction support and upsert logic
+func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
 	// Validate input with more robust checks
-	if storage == nil {
-		return fmt.Errorf("%w: storage cannot be nil", ErrInvalidInput)
+	if metadata == nil {
+		return fmt.Errorf("%w: file metadata cannot be nil", ErrInvalidInput)
 	}
 
-	if storage.ID == "" {
+	if metadata.ID == "" {
 		return fmt.Errorf("%w: file ID is required", ErrInvalidInput)
 	}
 
-	// Validate storage model
-	if err := storage.Validate(); err != nil {
-		return fmt.Errorf("invalid storage model: %w", err)
+	// Validate metadata model
+	if err := metadata.Validate(); err != nil {
+		return fmt.Errorf("invalid file metadata: %w", err)
 	}
 
 	// Convert FileMetadata to JSON with error handling
 	var fileMetadataJSON []byte
 	var err error
-	if storage.FileMetadata != nil {
-		fileMetadataJSON, err = json.Marshal(storage.FileMetadata)
+	if metadata.Metadata != nil {
+		fileMetadataJSON, err = json.Marshal(metadata.Metadata)
 		if err != nil {
 			return fmt.Errorf("failed to marshal file metadata: %w", err)
 		}
@@ -106,30 +106,37 @@ func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Sto
 
 	// Prepare SQL query with upsert logic and improved performance hints
 	query := `
-		INSERT INTO files (
+		INSERT INTO file_metadata (
 			id, 
-			file_metadata, 
+			metadata_json, 
 			storage_path, 
 			processing_status, 
+			user_id,
 			created_at, 
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET 
-			file_metadata = ?,
+			metadata_json = ?,
 			storage_path = ?,
 			processing_status = ?,
 			updated_at = ?
 	`
 
 	// Set default values if not provided
-	if storage.CreatedAt.IsZero() {
-		storage.CreatedAt = time.Now().UTC()
+	if metadata.CreatedAt.IsZero() {
+		metadata.CreatedAt = time.Now().UTC()
 	}
-	storage.UpdatedAt = time.Now().UTC()
+	metadata.UpdatedAt = time.Now().UTC()
 
 	// If no processing status is set, default to pending
-	if storage.ProcessingStatus == "" {
-		storage.ProcessingStatus = "PENDING"
+	if metadata.ProcessingStatus == "" {
+		metadata.ProcessingStatus = "PENDING"
+	}
+
+	// Ensure user_id is extracted
+	userID := ""
+	if metadata.Metadata != nil {
+		userID = metadata.Metadata.UserId
 	}
 
 	// Execute query with prepared statement for better performance
@@ -141,17 +148,18 @@ func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Sto
 
 	_, err = stmt.ExecContext(ctx,
 		// Insert values
-		storage.ID,
+		metadata.ID,
 		fileMetadataJSON,
-		storage.StoragePath,
-		storage.ProcessingStatus,
-		storage.CreatedAt,
-		storage.UpdatedAt,
+		metadata.StoragePath,
+		metadata.ProcessingStatus,
+		userID,
+		metadata.CreatedAt,
+		metadata.UpdatedAt,
 		// Update values
 		fileMetadataJSON,
-		storage.StoragePath,
-		storage.ProcessingStatus,
-		storage.UpdatedAt,
+		metadata.StoragePath,
+		metadata.ProcessingStatus,
+		metadata.UpdatedAt,
 	)
 
 	if err != nil {
@@ -164,48 +172,51 @@ func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Sto
 	}
 
 	r.logger.Info("File metadata stored successfully", 
-		slog.String("file_id", storage.ID),
-		slog.String("storage_path", storage.StoragePath))
+		slog.String("file_id", metadata.ID),
+		slog.String("storage_path", metadata.StoragePath))
 	return nil
 }
 
-// FindByID retrieves file metadata by ID with enhanced security
-func (r *SQLiteStorageRepository) FindByID(ctx context.Context, fileID string) (*models.Storage, error) {
+// RetrieveFileMetadataByID retrieves file metadata by ID with enhanced security
+func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Context, fileID string) (*models.FileMetadataRecord, error) {
 	// Validate input
 	if fileID == "" {
-		return nil, ErrInvalidInput
+		return nil, fmt.Errorf("%w: file ID cannot be empty", ErrInvalidInput)
 	}
 
 	// Prepare SQL query
 	query := `
 		SELECT 
 			id, 
-			file_metadata, 
+			metadata_json, 
 			storage_path, 
 			processing_status, 
+			user_id,
 			created_at, 
 			updated_at
-		FROM files 
+		FROM file_metadata 
 		WHERE id = ?
 	`
 
 	// Execute query
 	row := r.db.QueryRowContext(ctx, query, fileID)
 
-	// Scan result into storage model
-	storage := &models.Storage{}
+	// Scan result into metadata model
+	metadata := &models.FileMetadataRecord{}
 	var fileMetadataJSON []byte
+	var userID string
 	err := row.Scan(
-		&storage.ID,
+		&metadata.ID,
 		&fileMetadataJSON,
-		&storage.StoragePath,
-		&storage.ProcessingStatus,
-		&storage.CreatedAt,
-		&storage.UpdatedAt,
+		&metadata.StoragePath,
+		&metadata.ProcessingStatus,
+		&userID,
+		&metadata.CreatedAt,
+		&metadata.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
-		r.logger.Info("File not found", 
+		r.logger.Info("File metadata not found", 
 			slog.String("file_id", fileID))
 		return nil, ErrFileNotFound
 	} else if err != nil {
@@ -217,27 +228,33 @@ func (r *SQLiteStorageRepository) FindByID(ctx context.Context, fileID string) (
 
 	// Unmarshal file metadata
 	if len(fileMetadataJSON) > 0 {
-		storage.FileMetadata = &sharedv1.FileMetadata{}
-		if err := json.Unmarshal(fileMetadataJSON, storage.FileMetadata); err != nil {
+		metadata.Metadata = &sharedv1.FileMetadata{}
+		if err := json.Unmarshal(fileMetadataJSON, metadata.Metadata); err != nil {
 			r.logger.Error("Error unmarshaling file metadata", 
 				slog.String("file_id", fileID),
 				slog.String("error", err.Error()))
 			return nil, fmt.Errorf("failed to unmarshal file metadata: %w", err)
 		}
+		metadata.Metadata.UserId = userID
 	}
 
 	r.logger.Info("File metadata retrieved successfully", 
 		slog.String("file_id", fileID))
-	return storage, nil
+	return metadata, nil
 }
 
-// ListFiles retrieves files with advanced pagination and filtering
-func (r *SQLiteStorageRepository) ListFiles(ctx context.Context, opts *ListFilesOptions) ([]*models.Storage, error) {
+// ListFileMetadata retrieves file metadata with advanced pagination and filtering
+func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, error) {
 	// Validate input
-	if opts.UserID == "" {
-		return nil, ErrInvalidInput
+	if opts == nil {
+		return nil, fmt.Errorf("%w: list options cannot be nil", ErrInvalidInput)
 	}
 
+	if opts.UserID == "" {
+		return nil, fmt.Errorf("%w: user ID is required", ErrInvalidInput)
+	}
+
+	// Normalize pagination
 	if opts.Limit < 1 || opts.Limit > 100 {
 		opts.Limit = 10
 	}
@@ -246,96 +263,98 @@ func (r *SQLiteStorageRepository) ListFiles(ctx context.Context, opts *ListFiles
 	offset := (opts.Offset - 1) * opts.Limit
 
 	// Count total files
-	countQuery := `SELECT COUNT(*) FROM files WHERE file_metadata->>'$.user_id' = ?`
+	countQuery := `SELECT COUNT(*) FROM file_metadata WHERE user_id = ?`
 	var totalFiles int
 	err := r.db.QueryRowContext(ctx, countQuery, opts.UserID).Scan(&totalFiles)
 	if err != nil {
-		r.logger.Error("Error counting files", 
+		r.logger.Error("Error counting file metadata", 
 			slog.String("user_id", opts.UserID),
 			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("failed to count files: %w", err)
+		return nil, fmt.Errorf("failed to count file metadata: %w", err)
 	}
 
-	// Retrieve paginated files
+	// Retrieve paginated file metadata
 	query := `
 		SELECT 
 			id, 
-			file_metadata, 
+			metadata_json, 
 			storage_path, 
 			processing_status, 
+			user_id,
 			created_at, 
 			updated_at
-		FROM files 
-		WHERE file_metadata->>'$.user_id' = ?
-		ORDER BY created_at DESC
+		FROM file_metadata
+		WHERE user_id = ?
 		LIMIT ? OFFSET ?
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, opts.UserID, opts.Limit, offset)
 	if err != nil {
-		r.logger.Error("Error listing files", 
+		r.logger.Error("Error listing file metadata", 
 			slog.String("user_id", opts.UserID),
 			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("failed to list files: %w", err)
+		return nil, fmt.Errorf("failed to list file metadata: %w", err)
 	}
 	defer rows.Close()
 
-	// Process results
-	var files []*models.Storage
+	var fileMetadataRecords []*models.FileMetadataRecord
 	for rows.Next() {
-		storage := &models.Storage{}
+		metadata := &models.FileMetadataRecord{}
 		var fileMetadataJSON []byte
+		var userID string
 		err := rows.Scan(
-			&storage.ID,
+			&metadata.ID,
 			&fileMetadataJSON,
-			&storage.StoragePath,
-			&storage.ProcessingStatus,
-			&storage.CreatedAt,
-			&storage.UpdatedAt,
+			&metadata.StoragePath,
+			&metadata.ProcessingStatus,
+			&userID,
+			&metadata.CreatedAt,
+			&metadata.UpdatedAt,
 		)
 		if err != nil {
-			r.logger.Error("Error scanning file row", 
+			r.logger.Error("Error scanning file metadata row", 
 				slog.String("error", err.Error()))
 			continue
 		}
 		if len(fileMetadataJSON) > 0 {
-			storage.FileMetadata = &sharedv1.FileMetadata{}
-			if err := json.Unmarshal(fileMetadataJSON, storage.FileMetadata); err != nil {
+			metadata.Metadata = &sharedv1.FileMetadata{}
+			if err := json.Unmarshal(fileMetadataJSON, metadata.Metadata); err != nil {
 				r.logger.Error("Error unmarshaling file metadata", 
 					slog.String("error", err.Error()))
 				continue
 			}
+			metadata.Metadata.UserId = userID
 		}
-		files = append(files, storage)
+		fileMetadataRecords = append(fileMetadataRecords, metadata)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.logger.Error("Error in file rows", 
+		r.logger.Error("Error in file metadata rows", 
 			slog.String("error", err.Error()))
-		return nil, fmt.Errorf("error processing file rows: %w", err)
+		return nil, fmt.Errorf("error processing file metadata rows: %w", err)
 	}
 
-	r.logger.Info("Files listed successfully", 
+	r.logger.Info("File metadata listed successfully", 
 		slog.String("user_id", opts.UserID),
 		slog.Int("total_files", totalFiles))
-	return files, nil
+	return fileMetadataRecords, nil
 }
 
-// DeleteFile removes a file by ID with user authorization
-func (r *SQLiteStorageRepository) DeleteFile(ctx context.Context, fileID string) error {
+// RemoveFileMetadata removes a file metadata record by ID
+func (r *SQLiteFileMetadataRepository) RemoveFileMetadata(ctx context.Context, fileID string) error {
 	// Validate input
 	if fileID == "" {
-		return ErrInvalidInput
+		return fmt.Errorf("%w: file ID cannot be empty", ErrInvalidInput)
 	}
 
-	// Prepare delete query with user authorization
-	query := `DELETE FROM files WHERE id = ? AND file_metadata->>'$.user_id' = ?`
-	result, err := r.db.ExecContext(ctx, query, fileID, "")
+	// Prepare delete query
+	query := `DELETE FROM file_metadata WHERE id = ?`
+	result, err := r.db.ExecContext(ctx, query, fileID)
 	if err != nil {
-		r.logger.Error("Error deleting file", 
+		r.logger.Error("Error removing file metadata", 
 			slog.String("file_id", fileID),
 			slog.String("error", err.Error()))
-		return fmt.Errorf("failed to delete file: %w", err)
+		return fmt.Errorf("failed to remove file metadata: %w", ErrDatabaseOperation)
 	}
 
 	// Check if any rows were affected
@@ -344,16 +363,16 @@ func (r *SQLiteStorageRepository) DeleteFile(ctx context.Context, fileID string)
 		r.logger.Error("Error checking rows affected", 
 			slog.String("file_id", fileID),
 			slog.String("error", err.Error()))
-		return fmt.Errorf("error checking deletion: %w", err)
+		return fmt.Errorf("error checking deletion: %w", ErrDatabaseOperation)
 	}
 
 	if rowsAffected == 0 {
-		r.logger.Info("No file found with ID", 
+		r.logger.Info("No file metadata found with ID", 
 			slog.String("file_id", fileID))
 		return ErrFileNotFound
 	}
 
-	r.logger.Info("File deleted successfully", 
+	r.logger.Info("File metadata removed successfully", 
 		slog.String("file_id", fileID))
 	return nil
 }

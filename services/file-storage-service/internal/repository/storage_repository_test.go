@@ -13,14 +13,14 @@ import (
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 )
 
-func TestSQLiteStorageRepository_Store(t *testing.T) {
+func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
 	// Initialize test database
 	migrator, err := InitializeTestDatabase()
 	require.NoError(t, err)
 	defer migrator.Close()
 
 	// Create repository
-	repo := NewSQLiteStorageRepository(migrator, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	repo := NewSQLiteFileMetadataRepository(migrator, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
 	// Prepare test metadata
 	testMetadata := &sharedv1.FileMetadata{
@@ -36,14 +36,14 @@ func TestSQLiteStorageRepository_Store(t *testing.T) {
 	// Test cases
 	testCases := []struct {
 		name        string
-		storage     *models.Storage
+		metadata    *models.FileMetadataRecord
 		expectError bool
 	}{
 		{
-			name: "Valid Storage",
-			storage: &models.Storage{
+			name: "Valid Metadata Storage",
+			metadata: &models.FileMetadataRecord{
 				ID:               "test-file-id-1",
-				FileMetadata:     testMetadata,
+				Metadata:         testMetadata,
 				StoragePath:      "/tmp/test_file.txt",
 				ProcessingStatus: "PENDING",
 				CreatedAt:        time.Now().UTC(),
@@ -52,15 +52,15 @@ func TestSQLiteStorageRepository_Store(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "Nil Storage",
-			storage:     nil,
+			name:        "Nil Metadata",
+			metadata:    nil,
 			expectError: true,
 		},
 		{
-			name: "Empty ID",
-			storage: &models.Storage{
+			name: "Empty File ID",
+			metadata: &models.FileMetadataRecord{
 				ID:               "",
-				FileMetadata:     testMetadata,
+				Metadata:         testMetadata,
 				ProcessingStatus: "PENDING",
 			},
 			expectError: true,
@@ -69,42 +69,39 @@ func TestSQLiteStorageRepository_Store(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			err := repo.Store(ctx, tc.storage)
-
+			err := repo.CreateFileMetadata(context.Background(), tc.metadata)
+			
 			if tc.expectError {
-				assert.Error(t, err, "Expected an error for test case: %s", tc.name)
+				assert.Error(t, err, "Expected an error")
 			} else {
-				assert.NoError(t, err, "Unexpected error for test case: %s", tc.name)
+				assert.NoError(t, err, "Unexpected error")
 
 				// Verify storage by retrieving
-				if tc.storage != nil && tc.storage.ID != "" {
-					storedFile, err := repo.FindByID(ctx, tc.storage.ID)
-					assert.NoError(t, err, "Error finding stored file")
-					assert.NotNil(t, storedFile, "Stored file should not be nil")
-					assert.Equal(t, tc.storage.ID, storedFile.ID, "Stored file ID should match")
-
-					// Additional metadata verification
-					if tc.storage.FileMetadata != nil {
-						assert.NotNil(t, storedFile.FileMetadata, "File metadata should not be nil")
-						assert.Equal(t, tc.storage.FileMetadata.OriginalFilename,
-							storedFile.FileMetadata.OriginalFilename,
-							"Original filename should match")
-					}
+				storedFile, err := repo.RetrieveFileMetadataByID(context.Background(), tc.metadata.ID)
+				assert.NoError(t, err, "Error finding stored file")
+				assert.NotNil(t, storedFile, "Stored file should not be nil")
+				assert.Equal(t, tc.metadata.ID, storedFile.ID, "Stored file ID should match")
+				
+				// Additional metadata verification
+				if tc.metadata.Metadata != nil {
+					assert.NotNil(t, storedFile.Metadata, "File metadata should not be nil")
+					assert.Equal(t, tc.metadata.Metadata.OriginalFilename, 
+						storedFile.Metadata.OriginalFilename, 
+						"Original filename should match")
 				}
 			}
 		})
 	}
 }
 
-func TestSQLiteStorageRepository_Upsert(t *testing.T) {
+func TestSQLiteFileMetadataRepository_Upsert(t *testing.T) {
 	// Initialize test database
 	migrator, err := InitializeTestDatabase()
 	require.NoError(t, err)
 	defer migrator.Close()
 
 	// Create repository
-	repo := NewSQLiteStorageRepository(migrator, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	repo := NewSQLiteFileMetadataRepository(migrator, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
 	// Prepare initial metadata
 	initialMetadata := &sharedv1.FileMetadata{
@@ -117,9 +114,9 @@ func TestSQLiteStorageRepository_Upsert(t *testing.T) {
 		UserId:           "test-user-1",
 	}
 
-	initialStorage := &models.Storage{
+	initialFileMetadata := &models.FileMetadataRecord{
 		ID:               "test-upsert-id",
-		FileMetadata:     initialMetadata,
+		Metadata:         initialMetadata,
 		StoragePath:      "/tmp/initial_file.txt",
 		ProcessingStatus: "PENDING",
 		CreatedAt:        time.Now().UTC(),
@@ -127,7 +124,7 @@ func TestSQLiteStorageRepository_Upsert(t *testing.T) {
 	}
 
 	// First store
-	err = repo.Store(context.Background(), initialStorage)
+	err = repo.CreateFileMetadata(context.Background(), initialFileMetadata)
 	require.NoError(t, err, "First store should succeed")
 
 	// Update metadata (create a new instance to avoid mutex copy)
@@ -141,24 +138,24 @@ func TestSQLiteStorageRepository_Upsert(t *testing.T) {
 		UserId:           initialMetadata.UserId,
 	}
 
-	updatedStorage := &models.Storage{
+	updatedFileMetadata := &models.FileMetadataRecord{
 		ID:               "test-upsert-id",
-		FileMetadata:     &updatedMetadata,
+		Metadata:         &updatedMetadata,
 		StoragePath:      "/tmp/updated_file.txt",
 		ProcessingStatus: "PROCESSING",
-		CreatedAt:        initialStorage.CreatedAt,
+		CreatedAt:        initialFileMetadata.CreatedAt,
 		UpdatedAt:        time.Now().UTC(),
 	}
 
 	// Update (upsert)
-	err = repo.Store(context.Background(), updatedStorage)
+	err = repo.CreateFileMetadata(context.Background(), updatedFileMetadata)
 	require.NoError(t, err, "Upsert should succeed")
 
 	// Retrieve and verify
-	storedFile, err := repo.FindByID(context.Background(), "test-upsert-id")
+	storedFile, err := repo.RetrieveFileMetadataByID(context.Background(), "test-upsert-id")
 	require.NoError(t, err, "Should find updated file")
-
-	assert.Equal(t, "updated_file.txt", storedFile.FileMetadata.OriginalFilename, "Filename should be updated")
+	
+	assert.Equal(t, "updated_file.txt", storedFile.Metadata.OriginalFilename, "Filename should be updated")
 	assert.Equal(t, "/tmp/updated_file.txt", storedFile.StoragePath, "Storage path should be updated")
 	assert.Equal(t, "PROCESSING", storedFile.ProcessingStatus, "Processing status should be updated")
 }
