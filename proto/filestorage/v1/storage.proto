@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package filestorage.v1;
 
-import "shared/v1/shared.proto";
 import "fileupload/v1/upload.proto";
+import "shared/v1/shared.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/gen/go/filestorage/v1";
 
@@ -11,26 +11,25 @@ option go_package = "github.com/yaanno/upload-store-process/gen/go/filestorage/v
 service FileStorageService {
   // Store file metadata
   rpc StoreFileMetadata(StoreFileMetadataRequest) returns (StoreFileMetadataResponse) {}
-  
+
   // Retrieve file metadata
   rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse) {}
-  
+
   // List files with pagination
   rpc ListFiles(ListFilesRequest) returns (ListFilesResponse) {}
-  
+
   // Delete a file
   rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {}
-  
+
   // Compress file
   rpc CompressFile(CompressFileRequest) returns (CompressFileResponse) {}
-  
+
   // Prepare storage for a new file upload
   rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
 
   // Confirm file upload completion
   rpc CompleteUpload(CompleteUploadRequest) returns (fileupload.v1.CompleteUploadResponse) {}
 }
-
 
 // Request to store file metadata
 message StoreFileMetadataRequest {
@@ -87,9 +86,9 @@ message DeleteFileResponse {
 message CompressFileRequest {
   string file_id = 1;
   enum CompressionLevel {
-    DEFAULT = 0;
-    FAST = 1;
-    BEST = 2;
+    COMPRESSION_LEVEL_DEFAULT_UNSPECIFIED = 0;
+    COMPRESSION_LEVEL_FAST = 1;
+    COMPRESSION_LEVEL_BEST = 2;
   }
   CompressionLevel compression_level = 2;
 }

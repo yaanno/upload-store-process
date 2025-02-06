@@ -10,23 +10,23 @@ option go_package = "github.com/yaanno/upload-store-process/gen/go/fileprocessor
 service FileProcessorService {
   // Process uploaded file
   rpc ProcessFile(ProcessFileRequest) returns (ProcessFileResponse) {}
-  
+
   // Extract file metadata
   rpc ExtractMetadata(ExtractMetadataRequest) returns (ExtractMetadataResponse) {}
-  
+
   // Transform file content
   rpc TransformFile(TransformFileRequest) returns (TransformFileResponse) {}
-  
+
   // Get processing status
-  rpc GetProcessingStatus(ProcessingStatusRequest) returns (ProcessingStatusResponse) {}
+  rpc GetProcessingStatus(GetProcessingStatusRequest) returns (GetProcessingStatusResponse) {}
 }
 
 // Supported file types for processing
 enum FileType {
-  UNKNOWN = 0;
-  CSV = 1;
-  JSON = 2;
-  TXT = 3;
+  FILE_TYPE_UNKNOWN_UNSPECIFIED = 0;
+  FILE_TYPE_CSV = 1;
+  FILE_TYPE_JSON = 2;
+  FILE_TYPE_TXT = 3;
 }
 
 // Request to process a file
@@ -87,19 +87,19 @@ message TransformFileResponse {
 }
 
 // Request to check processing status
-message ProcessingStatusRequest {
+message GetProcessingStatusRequest {
   string file_id = 1;
 }
 
 // Response with processing status
-message ProcessingStatusResponse {
+message GetProcessingStatusResponse {
   shared.v1.Response base_response = 1;
   enum ProcessingStatus {
-    UNKNOWN = 0;
-    QUEUED = 1;
-    PROCESSING = 2;
-    COMPLETED = 3;
-    FAILED = 4;
+    PROCESSING_STATUS_UNKNOWN_UNSPECIFIED = 0;
+    PROCESSING_STATUS_QUEUED = 1;
+    PROCESSING_STATUS_PROCESSING = 2;
+    PROCESSING_STATUS_COMPLETED = 3;
+    PROCESSING_STATUS_FAILED = 4;
   }
   ProcessingStatus status = 2;
   string error_message = 3;
