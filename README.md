@@ -64,6 +64,8 @@ make run
 
 ## Documentation
 
+### Detailed Guides
+- [Metadata Generation Strategy](/docs/METADATA_GENERATION.md): Learn about our approach to secure and flexible file metadata generation
 - [Architecture Details](docs/ARCHITECTURE.md)
 - [Detailed Requirements](docs/REQUIREMENTS.md)
 - [Development Guide](docs/DEVELOPMENT.md)
