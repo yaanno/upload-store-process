@@ -2,8 +2,13 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -54,8 +59,21 @@ func (s *FileStorageService) PrepareUpload(
 		return nil, status.Errorf(codes.InvalidArgument, "invalid file size")
 	}
 
+	// Validate file size
+	if req.FileSizeBytes > 500*1024*1024 { // 500 MB
+		return nil, status.Errorf(codes.InvalidArgument, "file too large")
+	}
+
+	// Validate file type
+	if !isAllowedFileType(req.Filename) {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid file type")
+	}
+
 	// Generate a unique file ID (you might want to use a more robust ID generation method)
-	fileID := generateFileID()
+	fileID, err := generateSecureFileID()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to generate file ID: %v", err)
+	}
 
 	// Prepare initial metadata
 	initialMetadata := &sharedv1.FileMetadata{
@@ -84,14 +102,18 @@ func (s *FileStorageService) PrepareUpload(
 	}
 
 	// Generate a presigned URL or upload token (implementation depends on your storage strategy)
-	presignedURL, err := generatePresignedURL(fileID)
+	uploadToken, err := generateSecureUploadToken(fileID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate upload URL")
 	}
 
+	// TODO: add response fields
 	return &storagev1.PrepareUploadResponse{
-		UploadToken: presignedURL,
+		UploadToken: uploadToken,
 		StoragePath: generateStoragePath(fileID, req.Filename),
+		BaseResponse: &sharedv1.Response{
+			Message: "Upload prepared successfully",
+		},
 	}, nil
 }
 
@@ -101,7 +123,7 @@ func (s *FileStorageService) CompleteUpload(
 	req *storagev1.CompleteUploadRequest,
 ) (*storagev1.CompleteUploadResponse, error) {
 	// Validate input
-	if req == nil {
+	if req == nil || req.FileMetadata == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "complete upload request cannot be nil")
 	}
 
@@ -195,20 +217,55 @@ func (s *FileStorageService) ListFiles(
 	}, nil
 }
 
-// Utility functions (these would typically be in separate utility packages)
-func generateFileID() string {
-	// Implement a robust ID generation method
-	return fmt.Sprintf("file_%d", time.Now().UnixNano())
+// generateSecureFileID creates a cryptographically secure, unique file identifier
+func generateSecureFileID() (string, error) {
+	// Generate 32 bytes of cryptographically secure random data
+	randomBytes := make([]byte, 32)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate secure random bytes: %w", err)
+	}
+
+	// Create a hash to add an extra layer of unpredictability
+	hash := sha256.Sum256(append(randomBytes, []byte(time.Now().String())...))
+
+	// Use URL-safe base64 encoding to ensure safe use in URLs and file systems
+	return base64.URLEncoding.EncodeToString(hash[:]), nil
 }
 
-func generateStoragePath(fileID, filename string) string {
-	// Implement storage path generation logic
-	return fmt.Sprintf("/uploads/%s/%s", fileID, filename)
+func generateStoragePath(fileId string, fileName string) string {
+	now := time.Now()
+	return filepath.Join(
+		"uploads",
+		fmt.Sprintf("%d", now.Year()),
+		fmt.Sprintf("%02d", now.Month()),
+		fmt.Sprintf("%02d", now.Day()),
+		fmt.Sprintf("%s_%s", fileId, fileName),
+	)
 }
 
-func generatePresignedURL(fileID string) (string, error) {
-	// Implement presigned URL generation
-	return fmt.Sprintf("https://example.com/upload/%s", fileID), nil
+// generateSecureUploadToken creates a time-limited, secure upload token
+func generateSecureUploadToken(fileID string) (string, error) {
+	// Generate 64 bytes of cryptographically secure random data
+	tokenBytes := make([]byte, 64)
+	_, err := rand.Read(tokenBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate secure token: %w", err)
+	}
+
+	// Create a hash that includes file ID, random bytes, and current timestamp
+	tokenData := append(tokenBytes, []byte(fileID)...)
+	tokenData = append(tokenData, []byte(time.Now().String())...)
+
+	hash := sha256.Sum256(tokenData)
+
+	// Combine timestamp and base64 encoded hash for additional security
+	token := fmt.Sprintf("%d_%s",
+		time.Now().Add(time.Hour).Unix(), // Token expires in 1 hour
+		base64.URLEncoding.EncodeToString(hash[:]),
+	)
+
+	return token, nil
 }
 
 func determineFileType(filename string) string {
@@ -231,4 +288,36 @@ func extractUserID(ctx context.Context) string {
 	// Implement user ID extraction from context
 	// This is a placeholder - you'd typically use authentication middleware
 	return "test-user"
+}
+
+func isAllowedFileType(filename string) bool {
+	allowedExtensions := []string{".csv", ".json", ".txt"}
+	ext := strings.ToLower(filepath.Ext(filename))
+	for _, allowed := range allowedExtensions {
+		if ext == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// Optional: Token validation function
+func validateUploadToken(token string, fileID string) bool {
+	parts := strings.Split(token, "_")
+	if len(parts) != 2 {
+		return false
+	}
+
+	// Check token expiration
+	expirationTime, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return false
+	}
+
+	if time.Now().Unix() > expirationTime {
+		return false // Token expired
+	}
+
+	// Optionally, you could add additional validation logic here
+	return true
 }
