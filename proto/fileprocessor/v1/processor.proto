@@ -6,43 +6,102 @@ import "shared/v1/shared.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/gen/go/fileprocessor/v1";
 
+// FileProcessorService handles file processing and transformation
 service FileProcessorService {
-  // Trigger file processing
+  // Process uploaded file
   rpc ProcessFile(ProcessFileRequest) returns (ProcessFileResponse) {}
-
+  
+  // Extract file metadata
+  rpc ExtractMetadata(ExtractMetadataRequest) returns (ExtractMetadataResponse) {}
+  
+  // Transform file content
+  rpc TransformFile(TransformFileRequest) returns (TransformFileResponse) {}
+  
   // Get processing status
-  rpc GetProcessingStatus(GetProcessingStatusRequest) returns (GetProcessingStatusResponse) {}
+  rpc GetProcessingStatus(ProcessingStatusRequest) returns (ProcessingStatusResponse) {}
+}
+
+// Supported file types for processing
+enum FileType {
+  UNKNOWN = 0;
+  CSV = 1;
+  JSON = 2;
+  TXT = 3;
 }
 
 // Request to process a file
 message ProcessFileRequest {
-  string upload_id = 1;
-  string file_path = 2;
-  shared.v1.FileMetadata file_metadata = 3;
+  string file_id = 1;
+  FileType file_type = 2;
+  ProcessingOptions options = 3;
 }
 
-// Response after initiating processing
+// Processing configuration options
+message ProcessingOptions {
+  bool extract_metadata = 1;
+  bool validate_content = 2;
+  repeated string transformations = 3;
+}
+
+// Response after file processing
 message ProcessFileResponse {
   shared.v1.Response base_response = 1;
-  string job_id = 2;
+  string processed_file_id = 2;
+  FileMetadata metadata = 3;
+  bool processing_successful = 4;
+}
+
+// Metadata extracted from file
+message FileMetadata {
+  int64 total_rows = 1;
+  int64 total_columns = 2;
+  repeated string column_names = 3;
+  string primary_data_type = 4;
+  int64 processing_time_ms = 5;
+}
+
+// Request to extract file metadata
+message ExtractMetadataRequest {
+  string file_id = 1;
+  FileType file_type = 2;
+}
+
+// Response with extracted metadata
+message ExtractMetadataResponse {
+  shared.v1.Response base_response = 1;
+  FileMetadata metadata = 2;
+}
+
+// Request for file transformation
+message TransformFileRequest {
+  string file_id = 1;
+  FileType file_type = 2;
+  repeated string transformations = 3;
+}
+
+// Response after file transformation
+message TransformFileResponse {
+  shared.v1.Response base_response = 1;
+  string transformed_file_id = 2;
+  int64 transformation_time_ms = 3;
 }
 
 // Request to check processing status
-message GetProcessingStatusRequest {
-  string job_id = 1;
+message ProcessingStatusRequest {
+  string file_id = 1;
 }
 
-// Detailed processing status
-message GetProcessingStatusResponse {
-  enum Status {
-    STATUS_PENDING_UNSPECIFIED = 0;
-    STATUS_PROCESSING = 1;
-    STATUS_COMPLETED = 2;
-    STATUS_FAILED = 3;
-  }
-
+// Response with processing status
+message ProcessingStatusResponse {
   shared.v1.Response base_response = 1;
-  Status current_status = 2;
-  string details = 3;
-  repeated string processed_files = 4;
+  enum ProcessingStatus {
+    UNKNOWN = 0;
+    QUEUED = 1;
+    PROCESSING = 2;
+    COMPLETED = 3;
+    FAILED = 4;
+  }
+  ProcessingStatus status = 2;
+  string error_message = 3;
+  int64 progress_percentage = 4;
 }

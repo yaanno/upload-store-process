@@ -6,15 +6,27 @@ import "shared/v1/shared.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/gen/go/fileupload/v1";
 
+// FileUploadService defines methods for file upload management
 service FileUploadService {
   // Initiate file upload process
   rpc InitiateUpload(InitiateUploadRequest) returns (InitiateUploadResponse) {}
+  
+  // Complete file upload and trigger processing
+  rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse) {}
+  
+  // Cancel an ongoing upload
+  rpc CancelUpload(CancelUploadRequest) returns (CancelUploadResponse) {}
+  
+  // Get upload status
+  rpc GetUploadStatus(GetUploadStatusRequest) returns (GetUploadStatusResponse) {}
 }
 
 // Request to initiate file upload
 message InitiateUploadRequest {
   string filename = 1;
   int64 file_size_bytes = 2;
+  string file_type = 3;  // CSV, JSON, TXT
+  string user_id = 4;    // Optional user identification
 }
 
 // Response with upload details
@@ -22,4 +34,54 @@ message InitiateUploadResponse {
   shared.v1.Response base_response = 1;
   string upload_id = 2;
   string storage_endpoint = 3; // Where to upload the actual file
+  string upload_token = 4;     // Time-limited upload token
+  int64 expiration_time = 5;   // Token expiration timestamp
+}
+
+// Request to complete file upload
+message CompleteUploadRequest {
+  string upload_id = 1;
+  string file_hash = 2;        // Optional file integrity check
+  int64 total_chunks = 3;      // For potential chunked upload support
+}
+
+// Response after upload completion
+message CompleteUploadResponse {
+  shared.v1.Response base_response = 1;
+  string processed_file_id = 2;
+  bool processing_started = 3;
+}
+
+// Request to cancel an upload
+message CancelUploadRequest {
+  string upload_id = 1;
+  string reason = 2;  // Optional cancellation reason
+}
+
+// Response for upload cancellation
+message CancelUploadResponse {
+  shared.v1.Response base_response = 1;
+  bool upload_cancelled = 2;
+}
+
+// Request to check upload status
+message GetUploadStatusRequest {
+  string upload_id = 1;
+}
+
+// Response with upload status details
+message GetUploadStatusResponse {
+  shared.v1.Response base_response = 1;
+  enum UploadStatus {
+    UNKNOWN = 0;
+    INITIATED = 1;
+    UPLOADING = 2;
+    COMPLETED = 3;
+    PROCESSING = 4;
+    FAILED = 5;
+    CANCELLED = 6;
+  }
+  UploadStatus status = 2;
+  int64 bytes_uploaded = 3;
+  string error_message = 4;
 }

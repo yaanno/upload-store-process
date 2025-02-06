@@ -3,15 +3,103 @@ syntax = "proto3";
 package filestorage.v1;
 
 import "shared/v1/shared.proto";
+import "fileupload/v1/upload.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/gen/go/filestorage/v1";
 
+// FileStorageService manages file storage and retrieval
 service FileStorageService {
+  // Store file metadata
+  rpc StoreFileMetadata(StoreFileMetadataRequest) returns (StoreFileMetadataResponse) {}
+  
+  // Retrieve file metadata
+  rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse) {}
+  
+  // List files with pagination
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse) {}
+  
+  // Delete a file
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {}
+  
+  // Compress file
+  rpc CompressFile(CompressFileRequest) returns (CompressFileResponse) {}
+  
   // Prepare storage for a new file upload
   rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
 
   // Confirm file upload completion
-  rpc CompleteUpload(CompleteUploadRequest) returns (shared.v1.CompleteUploadResponse) {}
+  rpc CompleteUpload(CompleteUploadRequest) returns (fileupload.v1.CompleteUploadResponse) {}
+}
+
+
+// Request to store file metadata
+message StoreFileMetadataRequest {
+  shared.v1.FileMetadata metadata = 1;
+  string upload_id = 2;
+}
+
+// Response after storing metadata
+message StoreFileMetadataResponse {
+  shared.v1.Response base_response = 1;
+  string file_id = 2;
+}
+
+// Request to retrieve file metadata
+message GetFileMetadataRequest {
+  string file_id = 1;
+}
+
+// Response with file metadata
+message GetFileMetadataResponse {
+  shared.v1.Response base_response = 1;
+  shared.v1.FileMetadata metadata = 2;
+}
+
+// Request to list files
+message ListFilesRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string user_id = 3;
+  string file_type = 4;
+}
+
+// Response with file list
+message ListFilesResponse {
+  shared.v1.Response base_response = 1;
+  repeated shared.v1.FileMetadata files = 2;
+  int32 total_files = 3;
+  int32 total_pages = 4;
+}
+
+// Request to delete a file
+message DeleteFileRequest {
+  string file_id = 1;
+  string user_id = 2;
+}
+
+// Response after file deletion
+message DeleteFileResponse {
+  shared.v1.Response base_response = 1;
+  bool file_deleted = 2;
+}
+
+// Request to compress a file
+message CompressFileRequest {
+  string file_id = 1;
+  enum CompressionLevel {
+    DEFAULT = 0;
+    FAST = 1;
+    BEST = 2;
+  }
+  CompressionLevel compression_level = 2;
+}
+
+// Response after file compression
+message CompressFileResponse {
+  shared.v1.Response base_response = 1;
+  string compressed_file_id = 2;
+  int64 original_size = 3;
+  int64 compressed_size = 4;
 }
 
 // Request to prepare file storage
@@ -23,7 +111,7 @@ message PrepareUploadRequest {
 
 // Response with upload storage details
 message PrepareUploadResponse {
-  shared.v1.CompleteUploadResponse base_response = 1;
+  fileupload.v1.CompleteUploadResponse base_response = 1;
   string storage_path = 2;
   string upload_token = 3;
 }
