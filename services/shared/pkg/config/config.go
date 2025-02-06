@@ -19,6 +19,7 @@ type ServiceConfig struct {
 	// Extensible for service-specific configurations
 	Database DatabaseConfig `mapstructure:"database"`
 	NATS     NATSConfig     `mapstructure:"nats"`
+	Storage  Storage        `mapstructure:"storage"`
 }
 
 type DatabaseConfig struct {
@@ -33,6 +34,11 @@ type DatabaseConfig struct {
 type NATSConfig struct {
 	Servers []string `mapstructure:"servers"`
 	Cluster string   `mapstructure:"cluster"`
+}
+
+type Storage struct {
+	Provider string `mapstructure:"provider"`
+	BasePath string `mapstructure:"base_path"`
 }
 
 // Load configuration with environment and service-specific overrides

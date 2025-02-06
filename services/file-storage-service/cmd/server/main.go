@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -9,6 +10,10 @@ import (
 
 	"google.golang.org/grpc"
 
+	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
+	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -52,6 +57,11 @@ func main() {
 
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
+
+	localFilesystemStorage := storageProvider.NewLocalFilesystemStorage(cfg.Storage.BasePath)
+	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(nil, &slog.Logger{})
+	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, *log, localFilesystemStorage)
+	storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServiceServer)
 
 	// TODO: Register service implementations
 	// fileStorageServer := service.NewFileStorageServer(cfg)

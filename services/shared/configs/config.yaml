@@ -15,3 +15,7 @@ nats:
   servers: 
     - nats://localhost:4222
   cluster: upload-store-cluster
+
+storage:
+  provider: local
+  base_path: /data/uploads

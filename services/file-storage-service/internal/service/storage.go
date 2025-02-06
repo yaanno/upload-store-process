@@ -26,9 +26,30 @@ import (
 
 // FileStorageService implements the gRPC service
 type FileStorageService struct {
+	storagev1.UnimplementedFileStorageServiceServer
 	repo            repository.FileMetadataRepository
 	logger          logger.Logger
 	storageProvider storage.FileStorageProvider
+}
+
+// CompressFile implements v1.FileStorageServiceServer.
+func (s *FileStorageService) CompressFile(context.Context, *storagev1.CompressFileRequest) (*storagev1.CompressFileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompressFile not implemented")
+}
+
+// DeleteFile implements v1.FileStorageServiceServer.
+func (s *FileStorageService) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
+}
+
+// GetFileMetadata implements v1.FileStorageServiceServer.
+func (s *FileStorageService) GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetFileMetadata not implemented")
+}
+
+// StoreFileMetadata implements v1.FileStorageServiceServer.
+func (s *FileStorageService) StoreFileMetadata(context.Context, *storagev1.StoreFileMetadataRequest) (*storagev1.StoreFileMetadataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StoreFileMetadata not implemented")
 }
 
 // NewFileStorageService creates a new instance of FileStorageService
