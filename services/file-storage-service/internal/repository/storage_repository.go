@@ -3,11 +3,13 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"time"
 
+	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 )
 
@@ -57,6 +59,16 @@ func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Sto
 		return fmt.Errorf("invalid storage model: %v", err)
 	}
 
+	// Convert FileMetadata to JSON
+	var fileMetadataJSON []byte
+	var err error
+	if storage.FileMetadata != nil {
+		fileMetadataJSON, err = json.Marshal(storage.FileMetadata)
+		if err != nil {
+			return fmt.Errorf("failed to marshal file metadata: %v", err)
+		}
+	}
+
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -102,13 +114,13 @@ func (r *SQLiteStorageRepository) Store(ctx context.Context, storage *models.Sto
 	_, err = tx.ExecContext(ctx, query,
 		// Insert values
 		storage.ID,
-		storage.FileMetadata,
+		fileMetadataJSON,
 		storage.StoragePath,
 		storage.ProcessingStatus,
 		storage.CreatedAt,
 		storage.UpdatedAt,
 		// Update values
-		storage.FileMetadata,
+		fileMetadataJSON,
 		storage.StoragePath,
 		storage.ProcessingStatus,
 		storage.UpdatedAt,
@@ -152,9 +164,10 @@ func (r *SQLiteStorageRepository) FindByID(ctx context.Context, fileID string) (
 
 	// Scan result into storage model
 	storage := &models.Storage{}
+	var fileMetadataJSON []byte
 	err := row.Scan(
 		&storage.ID,
-		&storage.FileMetadata,
+		&fileMetadataJSON,
 		&storage.StoragePath,
 		&storage.ProcessingStatus,
 		&storage.CreatedAt,
@@ -167,6 +180,15 @@ func (r *SQLiteStorageRepository) FindByID(ctx context.Context, fileID string) (
 	} else if err != nil {
 		log.Printf("Error retrieving file metadata: %v", err)
 		return nil, fmt.Errorf("failed to retrieve file metadata: %v", err)
+	}
+
+	// Unmarshal file metadata
+	if len(fileMetadataJSON) > 0 {
+		storage.FileMetadata = &sharedv1.FileMetadata{}
+		if err := json.Unmarshal(fileMetadataJSON, storage.FileMetadata); err != nil {
+			log.Printf("Error unmarshaling file metadata: %v", err)
+			return nil, fmt.Errorf("failed to unmarshal file metadata: %v", err)
+		}
 	}
 
 	return storage, nil
@@ -220,9 +242,10 @@ func (r *SQLiteStorageRepository) List(ctx context.Context, userID string, page,
 	var files []*models.Storage
 	for rows.Next() {
 		storage := &models.Storage{}
+		var fileMetadataJSON []byte
 		err := rows.Scan(
 			&storage.ID,
-			&storage.FileMetadata,
+			&fileMetadataJSON,
 			&storage.StoragePath,
 			&storage.ProcessingStatus,
 			&storage.CreatedAt,
@@ -231,6 +254,13 @@ func (r *SQLiteStorageRepository) List(ctx context.Context, userID string, page,
 		if err != nil {
 			log.Printf("Error scanning file row: %v", err)
 			continue
+		}
+		if len(fileMetadataJSON) > 0 {
+			storage.FileMetadata = &sharedv1.FileMetadata{}
+			if err := json.Unmarshal(fileMetadataJSON, storage.FileMetadata); err != nil {
+				log.Printf("Error unmarshaling file metadata: %v", err)
+				continue
+			}
 		}
 		files = append(files, storage)
 	}
