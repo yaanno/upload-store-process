@@ -33,7 +33,7 @@ type FileStorageService interface {
 }
 
 // FileStorageService implements the gRPC service
-type fileStorageService struct {
+type FileStorageServiceImpl struct {
 	storagev1.UnimplementedFileStorageServiceServer
 	repo            repository.FileMetadataRepository
 	logger          logger.Logger
@@ -47,8 +47,8 @@ func NewFileStorageService(
 	logger logger.Logger,
 	storageProvider storage.FileStorageProvider,
 	tokenValidator auth.TokenValidator,
-) *fileStorageService {
-	return &fileStorageService{
+) *FileStorageServiceImpl {
+	return &FileStorageServiceImpl{
 		repo:            repo,
 		logger:          logger,
 		storageProvider: storageProvider,
@@ -57,7 +57,7 @@ func NewFileStorageService(
 }
 
 // PrepareUpload prepares a file upload by storing initial metadata
-func (s *fileStorageService) PrepareUpload(
+func (s *FileStorageServiceImpl) PrepareUpload(
 	ctx context.Context,
 	req *storagev1.PrepareUploadRequest,
 ) (*storagev1.PrepareUploadResponse, error) {
@@ -154,7 +154,7 @@ func (s *fileStorageService) PrepareUpload(
 }
 
 // ListFiles retrieves a list of files for a user
-func (s *fileStorageService) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
+func (s *FileStorageServiceImpl) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
 	// Validate input
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "list files request cannot be nil")
@@ -216,12 +216,12 @@ func (s *fileStorageService) ListFiles(ctx context.Context, req *storagev1.ListF
 }
 
 // DeleteFile implements v1.FileStorageServiceServer.
-func (s *fileStorageService) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
+func (s *FileStorageServiceImpl) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
 }
 
 // GetFileMetadata implements v1.FileStorageServiceServer.
-func (s *fileStorageService) GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
+func (s *FileStorageServiceImpl) GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetFileMetadata not implemented")
 }
 
@@ -293,7 +293,15 @@ func isAllowedFileType(filename string) bool {
 }
 
 // Optional: Token validation function
-func validateUploadToken(token string, fileID string) bool {
+func (s *FileStorageServiceImpl) isUploadTokenValid(token string, fileID string) bool {
+	if token == "" {
+		return false
+	}
+
+	if fileID == "" {
+		return false
+	}
+
 	parts := strings.Split(token, "_")
 	if len(parts) != 2 {
 		return false
@@ -313,4 +321,4 @@ func validateUploadToken(token string, fileID string) bool {
 	return true
 }
 
-var _ FileStorageService = &fileStorageService{}
+var _ FileStorageService = &FileStorageServiceImpl{}
