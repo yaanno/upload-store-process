@@ -64,12 +64,12 @@ tasks:
   test:performance:
     desc: Run performance tests
     cmds:
-      - go test -v ./.../tests/performance/...
+      - go test -benchmem -benchtime=5x -bench=. -benchmem ./.../tests/performance/...
 
   test:coverage:
     desc: Generate test coverage report
     cmds:
-      - go test -coverprofile=coverage.out ./...
+      - go test -coverprofile=coverage.out ./... 
       - go tool cover -html=coverage.out -o coverage.html
 
   clean:
