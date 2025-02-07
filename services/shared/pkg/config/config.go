@@ -20,6 +20,7 @@ type ServiceConfig struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	NATS     NATSConfig     `mapstructure:"nats"`
 	Storage  Storage        `mapstructure:"storage"`
+	JWT      JWT            `mapstructure:"jwt"`
 }
 
 type DatabaseConfig struct {
@@ -39,6 +40,11 @@ type NATSConfig struct {
 type Storage struct {
 	Provider string `mapstructure:"provider"`
 	BasePath string `mapstructure:"base_path"`
+}
+
+type JWT struct {
+	Secret string `mapstructure:"secret"`
+	Issuer string `mapstructure:"issuer"`
 }
 
 // Load configuration with environment and service-specific overrides

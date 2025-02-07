@@ -19,3 +19,7 @@ nats:
 storage:
   provider: local
   base_path: /data/uploads
+
+jwt:
+  secret: "secret_key"
+  issuer: "myservice"

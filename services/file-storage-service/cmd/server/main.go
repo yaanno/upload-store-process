@@ -13,6 +13,7 @@ import (
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
 	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -69,10 +70,10 @@ func main() {
 	}
 
 	db := testDatabase.GetDB()
-
+	tokenGenerator := auth.NewTokenGenerator(cfg.JWT.Secret, cfg.JWT.Issuer)
 	localFilesystemStorage := storageProvider.NewLocalFilesystemStorage(cfg.Storage.BasePath)
 	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
-	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, localFilesystemStorage)
+	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, localFilesystemStorage, tokenGenerator)
 	storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServiceServer)
 
 	// Graceful shutdown setup
