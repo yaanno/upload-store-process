@@ -29,6 +29,7 @@ type FileMetadataRepository interface {
 	CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error
 	RetrieveFileMetadataByID(ctx context.Context, fileID string) (*models.FileMetadataRecord, error)
 	ListFileMetadata(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, error)
+	ListFiles(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error)
 	RemoveFileMetadata(ctx context.Context, fileID string) error
 }
 
@@ -364,6 +365,110 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 		Msg("File metadata listed successfully")
 
 	return fileMetadataRecords, nil
+}
+
+// ListFiles retrieves file metadata with advanced pagination and filtering
+func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error) {
+	// Validate input
+	if opts == nil {
+		return nil, 0, fmt.Errorf("%w: list options cannot be nil", ErrInvalidInput)
+	}
+
+	if opts.UserID == "" {
+		return nil, 0, fmt.Errorf("%w: user ID is required", ErrInvalidInput)
+	}
+
+	// Normalize pagination
+	if opts.Limit < 1 || opts.Limit > 100 {
+		opts.Limit = 10
+	}
+
+	// Calculate offset
+	offset := (opts.Offset - 1) * opts.Limit
+
+	// Count total files
+	countQuery := `SELECT COUNT(*) FROM file_metadata WHERE user_id = ?`
+	var totalFiles int
+	err := r.db.QueryRowContext(ctx, countQuery, opts.UserID).Scan(&totalFiles)
+	if err != nil {
+		r.logger.Error().
+			Err(err).
+			Str("userId", opts.UserID).
+			Msg("Error counting file metadata")
+		return nil, 0, fmt.Errorf("failed to count file metadata: %w", err)
+	}
+
+	// Retrieve paginated file metadata
+	query := `
+		SELECT 
+			id, 
+			metadata_json, 
+			storage_path, 
+			processing_status, 
+			user_id,
+			created_at, 
+			updated_at
+		FROM file_metadata
+		WHERE user_id = ?
+		LIMIT ? OFFSET ?
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, opts.UserID, opts.Limit, offset)
+	if err != nil {
+		r.logger.Error().
+			Err(err).
+			Str("userId", opts.UserID).
+			Msg("Error listing file metadata")
+		return nil, 0, fmt.Errorf("failed to list file metadata: %w", err)
+	}
+	defer rows.Close()
+
+	var fileMetadataRecords []*models.FileMetadataRecord
+	for rows.Next() {
+		metadata := &models.FileMetadataRecord{}
+		var fileMetadataJSON []byte
+		var userID string
+		err := rows.Scan(
+			&metadata.ID,
+			&fileMetadataJSON,
+			&metadata.StoragePath,
+			&metadata.ProcessingStatus,
+			&userID,
+			&metadata.CreatedAt,
+			&metadata.UpdatedAt,
+		)
+		if err != nil {
+		r.logger.Error().
+			Err(err).
+			Msg("Error scanning file metadata row")
+			continue
+		}
+		if len(fileMetadataJSON) > 0 {
+			metadata.Metadata = &sharedv1.FileMetadata{}
+			if err := json.Unmarshal(fileMetadataJSON, metadata.Metadata); err != nil {
+				r.logger.Error().
+					Err(err).
+					Msg("Error unmarshaling file metadata")
+				continue
+			}
+			metadata.Metadata.UserId = userID
+		}
+		fileMetadataRecords = append(fileMetadataRecords, metadata)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.logger.Error().
+			Err(err).
+			Msg("Error in file metadata rows")
+		return nil, 0, fmt.Errorf("error processing file metadata rows: %w", err)
+	}
+
+	r.logger.Info().
+		Str("userId", opts.UserID).
+		Int("totalFiles", totalFiles).
+		Msg("File metadata listed successfully")
+
+	return fileMetadataRecords, totalFiles, nil
 }
 
 // RemoveFileMetadata removes a file metadata record by ID

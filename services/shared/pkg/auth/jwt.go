@@ -9,21 +9,27 @@ import (
 )
 
 // TokenGenerator creates a new JWT token
-type TokenGenerator struct {
+type TokenGenerator interface {
+	GenerateToken(userID, email string, roles, permissions []string, duration time.Duration) (string, error)
+	ValidateToken(tokenString string) (*Claims, error)
+}
+
+// tokenGeneratorImpl implements the TokenGenerator interface
+type tokenGeneratorImpl struct {
 	secretKey []byte
 	issuer    string
 }
 
 // NewTokenGenerator creates a new token generator
-func NewTokenGenerator(secretKey string, issuer string) *TokenGenerator {
-	return &TokenGenerator{
+func NewTokenGenerator(secretKey string, issuer string) TokenGenerator {
+	return &tokenGeneratorImpl{
 		secretKey: []byte(secretKey),
 		issuer:    issuer,
 	}
 }
 
 // GenerateToken creates a new JWT token with specified claims
-func (tg *TokenGenerator) GenerateToken(userID, email string, roles, permissions []string, duration time.Duration) (string, error) {
+func (tg *tokenGeneratorImpl) GenerateToken(userID, email string, roles, permissions []string, duration time.Duration) (string, error) {
 	now := time.Now()
 	claims := &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -43,7 +49,7 @@ func (tg *TokenGenerator) GenerateToken(userID, email string, roles, permissions
 }
 
 // ValidateToken validates and parses a JWT token
-func (tg *TokenGenerator) ValidateToken(tokenString string) (*Claims, error) {
+func (tg *tokenGeneratorImpl) ValidateToken(tokenString string) (*Claims, error) {
 	// Basic input validation
 	if tokenString == "" {
 		return nil, ErrMissingToken

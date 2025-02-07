@@ -21,6 +21,7 @@ import (
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
@@ -37,38 +38,21 @@ type fileStorageService struct {
 	repo            repository.FileMetadataRepository
 	logger          logger.Logger
 	storageProvider storage.FileStorageProvider
+	tokenValidator  auth.TokenValidator
 }
-
-// CompressFile implements v1.FileStorageServiceServer.
-// func (s *fileStorageService) CompressFile(context.Context, *storagev1.CompressFileRequest) (*storagev1.CompressFileResponse, error) {
-// 	return nil, status.Error(codes.Unimplemented, "method CompressFile not implemented")
-// }
-
-// DeleteFile implements v1.FileStorageServiceServer.
-func (s *fileStorageService) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
-}
-
-// GetFileMetadata implements v1.FileStorageServiceServer.
-func (s *fileStorageService) GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetFileMetadata not implemented")
-}
-
-// StoreFileMetadata implements v1.FileStorageServiceServer.
-// func (s *fileStorageService) StoreFileMetadata(context.Context, *storagev1.StoreFileMetadataRequest) (*storagev1.StoreFileMetadataResponse, error) {
-// 	return nil, status.Error(codes.Unimplemented, "method StoreFileMetadata not implemented")
-// }
 
 // NewFileStorageService creates a new instance of FileStorageService
 func NewFileStorageService(
 	repo repository.FileMetadataRepository,
 	logger logger.Logger,
 	storageProvider storage.FileStorageProvider,
+	tokenValidator auth.TokenValidator,
 ) *fileStorageService {
 	return &fileStorageService{
 		repo:            repo,
 		logger:          logger,
 		storageProvider: storageProvider,
+		tokenValidator:  tokenValidator,
 	}
 }
 
@@ -82,15 +66,23 @@ func (s *fileStorageService) PrepareUpload(
 		return nil, status.Errorf(codes.InvalidArgument, "upload request cannot be nil")
 	}
 
-	// TODO: implement JWT token validation as a middleware
-	// if req.JwtToken == "" {
-	// 	return nil, status.Errorf(codes.InvalidArgument, "JWT token is required")
-	// }
+	// Validate JWT token
+	claims, err := s.tokenValidator.ValidateToken(req.JwtToken)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid JWT token: %v", err)
+	}
 
+	// Validate user ID
+	if claims.UserID == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "user ID is required")
+	}
+
+	// Validate global upload ID
 	if req.GlobalUploadId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "global upload ID is required")
 	}
 
+	// Validate filename
 	if req.Filename == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "filename is required")
 	}
@@ -133,7 +125,7 @@ func (s *fileStorageService) PrepareUpload(
 		FileSizeBytes:    req.FileSizeBytes,
 		FileType:         determineFileType(req.Filename),
 		UploadTimestamp:  time.Now().Unix(),
-		UserId:           extractUserID(ctx), // Implement user context extraction
+		UserId:           claims.UserID,
 	}
 
 	// Create initial metadata record
@@ -161,83 +153,39 @@ func (s *fileStorageService) PrepareUpload(
 	}, nil
 }
 
-// CompleteUpload finalizes the file upload process
-// func (s *fileStorageService) CompleteUpload(
-// 	ctx context.Context,
-// 	req *storagev1.CompleteUploadRequest,
-// ) (*storagev1.CompleteUploadResponse, error) {
-// 	// Validate input
-// 	if req == nil {
-// 		return nil, status.Errorf(codes.InvalidArgument, "complete upload request cannot be nil")
-// 	}
-
-// 	// Validate upload ID
-// 	if req.UploadId == "" {
-// 		return nil, status.Errorf(codes.InvalidArgument, "upload ID is required")
-// 	}
-
-// 	// Validate file metadata
-// 	if req.FileMetadata == nil {
-// 		return nil, status.Errorf(codes.InvalidArgument, "file metadata is required")
-// 	}
-
-// 	// Prepare metadata for storage
-// 	metadata := &models.FileMetadataRecord{
-// 		ID:               req.UploadId, // Use the provided upload ID
-// 		ProcessingStatus: "COMPLETED",
-// 		Metadata:         req.FileMetadata,
-// 	}
-
-// 	// Store metadata
-// 	err := s.repo.CreateFileMetadata(ctx, metadata)
-// 	if err != nil {
-// 		s.logger.Error().Err(err).Msg("Failed to store file metadata")
-// 		return nil, status.Errorf(codes.Internal, "failed to store file metadata: %v", err)
-// 	}
-
-// 	return &storagev1.CompleteUploadResponse{
-// 		ProcessedFileId:   req.UploadId, // Return the same upload ID
-// 		ProcessingStarted: true,
-// 		BaseResponse: &sharedv1.Response{
-// 			Message: "Upload completed successfully",
-// 		},
-// 	}, nil
-// }
-
 // ListFiles retrieves a list of files for a user
-func (s *fileStorageService) ListFiles(
-	ctx context.Context,
-	req *storagev1.ListFilesRequest,
-) (*storagev1.ListFilesResponse, error) {
+func (s *fileStorageService) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
 	// Validate input
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "list files request cannot be nil")
 	}
 
-	userID := extractUserID(ctx)
-	if userID == "" {
-		return nil, status.Errorf(codes.Unauthenticated, "user not authenticated")
+	// Validate JWT token
+	claims, err := s.tokenValidator.ValidateToken(req.JwtToken)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid JWT token: %v", err)
 	}
 
-	// Default page size and page number if not provided
-	pageSize := req.PageSize
-	if pageSize == 0 {
-		pageSize = 1 // Default to 10 if not specified
-	}
+	// Validate pagination parameters
 	pageNum := req.Page
 	if pageNum < 1 {
 		pageNum = 1
 	}
 
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = 10 // Default page size
+	}
+
 	// Prepare list options
 	listOpts := &repository.FileMetadataListOptions{
-		UserID: userID,
+		UserID: claims.UserID,
 		Limit:  int(pageSize),
 		Offset: int((pageNum - 1) * pageSize),
 	}
 
 	// Retrieve file metadata
-	fileMetadataList, err := s.repo.ListFileMetadata(ctx, listOpts)
+	fileMetadataList, totalCount, err := s.repo.ListFiles(ctx, listOpts)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to list file metadata")
 		return nil, status.Errorf(codes.Internal, "failed to list files")
@@ -257,14 +205,24 @@ func (s *fileStorageService) ListFiles(
 	// Calculate total pages
 	var totalPages int32
 	if pageSize > 0 {
-		totalPages = int32(math.Ceil(float64(len(fileMetadataList)) / float64(pageSize)))
+		totalPages = int32(math.Ceil(float64(totalCount) / float64(pageSize)))
 	}
 
 	return &storagev1.ListFilesResponse{
 		Files:      files,
-		TotalFiles: int32(len(fileMetadataList)),
+		TotalFiles: int32(totalCount),
 		TotalPages: totalPages,
 	}, nil
+}
+
+// DeleteFile implements v1.FileStorageServiceServer.
+func (s *fileStorageService) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
+}
+
+// GetFileMetadata implements v1.FileStorageServiceServer.
+func (s *fileStorageService) GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetFileMetadata not implemented")
 }
 
 // generateSecureFileID creates a cryptographically secure, unique file identifier
@@ -321,12 +279,6 @@ func determineFileType(filename string) string {
 	default:
 		return "application/octet-stream"
 	}
-}
-
-func extractUserID(ctx context.Context) string {
-	// Implement user ID extraction from context
-	// This is a placeholder - you'd typically use authentication middleware
-	return "test-user"
 }
 
 func isAllowedFileType(filename string) bool {

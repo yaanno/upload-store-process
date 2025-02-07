@@ -62,7 +62,7 @@ func ExtractTokenFromRequest(req interface{}, tokenGenerator *TokenGenerator) (s
 }
 
 // UnaryServerInterceptor creates a JWT authentication interceptor
-func UnaryServerInterceptor(tokenGenerator *TokenGenerator, skipMethods ...string) grpc.UnaryServerInterceptor {
+func UnaryServerInterceptor(tokenValidator TokenValidator, skipMethods ...string) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		// Skip authentication for specified methods
 		for _, method := range skipMethods {
@@ -72,13 +72,13 @@ func UnaryServerInterceptor(tokenGenerator *TokenGenerator, skipMethods ...strin
 		}
 
 		// Extract token from request
-		token, err := ExtractTokenFromRequest(req, tokenGenerator)
+		token, err := ExtractTokenFromRequest(req, nil)
 		if err != nil {
 			return nil, status.Errorf(codes.Unauthenticated, "token extraction failed: %v", err)
 		}
 
 		// Validate token
-		claims, err := tokenGenerator.ValidateToken(token)
+		claims, err := tokenValidator.ValidateToken(token)
 		if err != nil {
 			return nil, status.Errorf(codes.Unauthenticated, "token validation failed: %v", err)
 		}
