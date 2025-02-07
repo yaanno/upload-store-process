@@ -54,17 +54,17 @@ tasks:
   test:unit:
     desc: Run unit tests
     cmds:
-      - go test ./tests/unit/...
+      - go test ./.../tests/unit/...
 
   test:integration:
     desc: Run integration tests
     cmds:
-      - go test ./tests/integration/...
+      - go test ./.../tests/integration/...
 
   test:performance:
     desc: Run performance tests
     cmds:
-      - go test -v ./tests/performance/...
+      - go test -v ./.../tests/performance/...
 
   test:coverage:
     desc: Generate test coverage report

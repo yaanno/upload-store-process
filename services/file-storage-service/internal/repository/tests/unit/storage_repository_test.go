@@ -1,4 +1,4 @@
-package repository
+package repository_test
 
 import (
 	"context"
@@ -9,19 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
+	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
 func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
 	// Initialize test database
-	migrator, err := InitializeTestDatabase()
+	migrator, err := repository.InitializeTestDatabase()
 	require.NoError(t, err)
 	defer migrator.Close()
 
 	db := migrator.GetDB()
 
 	// Create repository
-	repo := NewSQLiteFileMetadataRepository(db, logger.Logger{})
+	repo := repository.NewSQLiteFileMetadataRepository(db, logger.Logger{})
 
 	// Prepare test metadata
 	testMetadata := &sharedv1.FileMetadata{
@@ -97,14 +98,14 @@ func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
 
 func TestSQLiteFileMetadataRepository_Upsert(t *testing.T) {
 	// Initialize test database
-	migrator, err := InitializeTestDatabase()
+	migrator, err := repository.InitializeTestDatabase()
 	require.NoError(t, err)
 	defer migrator.Close()
 
 	db := migrator.GetDB()
 
 	// Create repository
-	repo := NewSQLiteFileMetadataRepository(db, logger.Logger{})
+	repo := repository.NewSQLiteFileMetadataRepository(db, logger.Logger{})
 
 	// Prepare initial metadata
 	initialMetadata := &sharedv1.FileMetadata{
