@@ -31,6 +31,7 @@ type FileMetadataRepository interface {
 	ListFileMetadata(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, error)
 	ListFiles(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error)
 	RemoveFileMetadata(ctx context.Context, fileID string) error
+	UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error
 }
 
 // FileMetadataListOptions provides filtering and pagination for file metadata listing
@@ -54,6 +55,81 @@ func NewSQLiteFileMetadataRepository(db *sql.DB, logger logger.Logger) *SQLiteFi
 		db:     db,
 		logger: logger,
 	}
+}
+
+// UpdateFileMetadata updates an existing file metadata record
+func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
+	// Validate input
+	if metadata == nil {
+		return fmt.Errorf("%w: file metadata cannot be nil", ErrInvalidInput)
+	}
+
+	if metadata.ID == "" {
+		return fmt.Errorf("%w: file ID is required", ErrInvalidInput)
+	}
+
+	// Convert FileMetadata to JSON
+	var fileMetadataJSON []byte
+	var err error
+	if metadata.Metadata != nil {
+		fileMetadataJSON, err = json.Marshal(metadata.Metadata)
+		if err != nil {
+			return fmt.Errorf("failed to marshal file metadata: %w", err)
+		}
+	}
+
+	// Begin transaction with timeout
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", ErrDatabaseOperation)
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				r.logger.Error().
+					Err(rollbackErr).
+					Str("original_error", err.Error()).
+					Msg("Failed to rollback transaction")
+			}
+		} else {
+			if err = tx.Commit(); err != nil {
+				r.logger.Error().
+					Err(err).
+					Msg("Failed to commit transaction")
+			}
+		}
+	}()
+
+	// Update file metadata
+	query := `
+		UPDATE file_metadata 
+		SET 
+			metadata = ?, 
+			storage_path = ?, 
+			processing_status = ?, 
+			updated_at = ?
+		WHERE id = ?
+	`
+
+	_, err = tx.ExecContext(ctx, query,
+		fileMetadataJSON,
+		metadata.StoragePath,
+		metadata.ProcessingStatus,
+		metadata.UpdatedAt,
+		metadata.ID,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update file metadata: %w", err)
+	}
+
+	return nil
 }
 
 // CreateFileMetadata saves file metadata with transaction support and upsert logic
@@ -438,9 +514,9 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *File
 			&metadata.UpdatedAt,
 		)
 		if err != nil {
-		r.logger.Error().
-			Err(err).
-			Msg("Error scanning file metadata row")
+			r.logger.Error().
+				Err(err).
+				Msg("Error scanning file metadata row")
 			continue
 		}
 		if len(fileMetadataJSON) > 0 {

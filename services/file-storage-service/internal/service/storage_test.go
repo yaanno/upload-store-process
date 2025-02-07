@@ -23,6 +23,12 @@ type MockFileMetadataRepository struct {
 	mock.Mock
 }
 
+// UpdateFileMetadata implements repository.FileMetadataRepository.
+func (m *MockFileMetadataRepository) UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
+	args := m.Called(ctx, metadata)
+	return args.Error(0)
+}
+
 // CreateFileMetadata implements repository.FileMetadataRepository.
 func (m *MockFileMetadataRepository) CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
 	args := m.Called(ctx, metadata)

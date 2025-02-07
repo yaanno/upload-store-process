@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -30,6 +31,7 @@ type FileStorageService interface {
 	GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error)
 	ListFiles(context.Context, *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error)
 	PrepareUpload(context.Context, *storagev1.PrepareUploadRequest) (*storagev1.PrepareUploadResponse, error)
+	UploadFile(context.Context, *storagev1.UploadFileRequest) (*storagev1.UploadFileResponse, error)
 }
 
 // FileStorageService implements the gRPC service
@@ -212,6 +214,73 @@ func (s *FileStorageServiceImpl) ListFiles(ctx context.Context, req *storagev1.L
 		Files:      files,
 		TotalFiles: int32(totalCount),
 		TotalPages: totalPages,
+	}, nil
+}
+
+// UploadFile handles the actual file upload process
+func (s *FileStorageServiceImpl) UploadFile(
+	ctx context.Context,
+	req *storagev1.UploadFileRequest,
+) (*storagev1.UploadFileResponse, error) {
+	// Validate input
+	if req == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "upload request cannot be nil")
+	}
+
+	// Validate upload token
+	if !s.isUploadTokenValid(req.StorageUploadToken, req.FileId) {
+		return nil, status.Errorf(codes.PermissionDenied, "invalid upload token")
+	}
+
+	// Retrieve file metadata to confirm upload context
+	metadata, err := s.repo.RetrieveFileMetadataByID(ctx, req.FileId)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "file metadata not found")
+	}
+
+	// Validate that file is in a valid state for upload
+	if metadata.ProcessingStatus != "PENDING" {
+		return nil, status.Errorf(codes.FailedPrecondition, "invalid file upload state")
+	}
+
+	// Update metadata to UPLOADING status
+	metadata.ProcessingStatus = "UPLOADING"
+	if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to update file metadata")
+	}
+
+	// Store the file using the storage provider
+	storagePath, err := s.storageProvider.StoreFile(
+		ctx,
+		req.FileId,
+		metadata.Metadata.OriginalFilename,
+		bytes.NewReader(req.FileContent),
+	)
+	if err != nil {
+		// Rollback metadata status
+		metadata.ProcessingStatus = "PENDING"
+		_ = s.repo.UpdateFileMetadata(ctx, metadata)
+		return nil, status.Errorf(codes.Internal, "failed to store file: %v", err)
+	}
+
+	// Update metadata to COMPLETED status
+	metadata.ProcessingStatus = "COMPLETED"
+	metadata.StoragePath = storagePath
+	metadata.UpdatedAt = time.Now().UTC()
+
+	if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
+		s.logger.Error().
+			Str("fileID", req.FileId).
+			Err(err).
+			Msg("Failed to update file metadata after upload")
+		// Non-critical error, file is already stored
+	}
+
+	return &storagev1.UploadFileResponse{
+		BaseResponse: &sharedv1.Response{
+			Message: "File uploaded successfully",
+		},
+		StoragePath: storagePath,
 	}, nil
 }
 
