@@ -25,13 +25,10 @@ import (
 )
 
 type FileStorageService interface {
-	CompressFile(context.Context, *storagev1.CompressFileRequest) (*storagev1.CompressFileResponse, error)
 	DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error)
 	GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error)
-	StoreFileMetadata(context.Context, *storagev1.StoreFileMetadataRequest) (*storagev1.StoreFileMetadataResponse, error)
 	ListFiles(context.Context, *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error)
 	PrepareUpload(context.Context, *storagev1.PrepareUploadRequest) (*storagev1.PrepareUploadResponse, error)
-	CompleteUpload(context.Context, *storagev1.CompleteUploadRequest) (*storagev1.CompleteUploadResponse, error)
 }
 
 // FileStorageService implements the gRPC service
@@ -43,9 +40,9 @@ type fileStorageService struct {
 }
 
 // CompressFile implements v1.FileStorageServiceServer.
-func (s *fileStorageService) CompressFile(context.Context, *storagev1.CompressFileRequest) (*storagev1.CompressFileResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CompressFile not implemented")
-}
+// func (s *fileStorageService) CompressFile(context.Context, *storagev1.CompressFileRequest) (*storagev1.CompressFileResponse, error) {
+// 	return nil, status.Error(codes.Unimplemented, "method CompressFile not implemented")
+// }
 
 // DeleteFile implements v1.FileStorageServiceServer.
 func (s *fileStorageService) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
@@ -58,9 +55,9 @@ func (s *fileStorageService) GetFileMetadata(context.Context, *storagev1.GetFile
 }
 
 // StoreFileMetadata implements v1.FileStorageServiceServer.
-func (s *fileStorageService) StoreFileMetadata(context.Context, *storagev1.StoreFileMetadataRequest) (*storagev1.StoreFileMetadataResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method StoreFileMetadata not implemented")
-}
+// func (s *fileStorageService) StoreFileMetadata(context.Context, *storagev1.StoreFileMetadataRequest) (*storagev1.StoreFileMetadataResponse, error) {
+// 	return nil, status.Error(codes.Unimplemented, "method StoreFileMetadata not implemented")
+// }
 
 // NewFileStorageService creates a new instance of FileStorageService
 func NewFileStorageService(
@@ -83,6 +80,15 @@ func (s *fileStorageService) PrepareUpload(
 	// Validate input
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "upload request cannot be nil")
+	}
+
+	// TODO: implement JWT token validation as a middleware
+	// if req.JwtToken == "" {
+	// 	return nil, status.Errorf(codes.InvalidArgument, "JWT token is required")
+	// }
+
+	if req.GlobalUploadId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "global upload ID is required")
 	}
 
 	if req.Filename == "" {
@@ -147,8 +153,8 @@ func (s *fileStorageService) PrepareUpload(
 	}
 
 	return &storagev1.PrepareUploadResponse{
-		UploadToken: uploadToken,
-		StoragePath: storagePath,
+		StorageUploadToken: uploadToken,
+		StoragePath:        storagePath,
 		BaseResponse: &sharedv1.Response{
 			Message: "Upload prepared successfully",
 		},
@@ -156,47 +162,47 @@ func (s *fileStorageService) PrepareUpload(
 }
 
 // CompleteUpload finalizes the file upload process
-func (s *fileStorageService) CompleteUpload(
-	ctx context.Context,
-	req *storagev1.CompleteUploadRequest,
-) (*storagev1.CompleteUploadResponse, error) {
-	// Validate input
-	if req == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "complete upload request cannot be nil")
-	}
+// func (s *fileStorageService) CompleteUpload(
+// 	ctx context.Context,
+// 	req *storagev1.CompleteUploadRequest,
+// ) (*storagev1.CompleteUploadResponse, error) {
+// 	// Validate input
+// 	if req == nil {
+// 		return nil, status.Errorf(codes.InvalidArgument, "complete upload request cannot be nil")
+// 	}
 
-	// Validate upload ID
-	if req.UploadId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "upload ID is required")
-	}
+// 	// Validate upload ID
+// 	if req.UploadId == "" {
+// 		return nil, status.Errorf(codes.InvalidArgument, "upload ID is required")
+// 	}
 
-	// Validate file metadata
-	if req.FileMetadata == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "file metadata is required")
-	}
+// 	// Validate file metadata
+// 	if req.FileMetadata == nil {
+// 		return nil, status.Errorf(codes.InvalidArgument, "file metadata is required")
+// 	}
 
-	// Prepare metadata for storage
-	metadata := &models.FileMetadataRecord{
-		ID:               req.UploadId, // Use the provided upload ID
-		ProcessingStatus: "COMPLETED",
-		Metadata:         req.FileMetadata,
-	}
+// 	// Prepare metadata for storage
+// 	metadata := &models.FileMetadataRecord{
+// 		ID:               req.UploadId, // Use the provided upload ID
+// 		ProcessingStatus: "COMPLETED",
+// 		Metadata:         req.FileMetadata,
+// 	}
 
-	// Store metadata
-	err := s.repo.CreateFileMetadata(ctx, metadata)
-	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to store file metadata")
-		return nil, status.Errorf(codes.Internal, "failed to store file metadata: %v", err)
-	}
+// 	// Store metadata
+// 	err := s.repo.CreateFileMetadata(ctx, metadata)
+// 	if err != nil {
+// 		s.logger.Error().Err(err).Msg("Failed to store file metadata")
+// 		return nil, status.Errorf(codes.Internal, "failed to store file metadata: %v", err)
+// 	}
 
-	return &storagev1.CompleteUploadResponse{
-		ProcessedFileId:   req.UploadId, // Return the same upload ID
-		ProcessingStarted: true,
-		BaseResponse: &sharedv1.Response{
-			Message: "Upload completed successfully",
-		},
-	}, nil
-}
+// 	return &storagev1.CompleteUploadResponse{
+// 		ProcessedFileId:   req.UploadId, // Return the same upload ID
+// 		ProcessingStarted: true,
+// 		BaseResponse: &sharedv1.Response{
+// 			Message: "Upload completed successfully",
+// 		},
+// 	}, nil
+// }
 
 // ListFiles retrieves a list of files for a user
 func (s *fileStorageService) ListFiles(
