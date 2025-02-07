@@ -9,52 +9,37 @@ option go_package = "github.com/yaanno/upload-store-process/gen/go/fileupload/v1
 // FileUploadService defines methods for file upload management
 service FileUploadService {
   // Initiate file upload process
-  rpc InitiateUpload(InitiateUploadRequest) returns (InitiateUploadResponse) {}
-
-  // Complete file upload and trigger processing
-  rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse) {}
+  rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
 
   // Cancel an ongoing upload
   rpc CancelUpload(CancelUploadRequest) returns (CancelUploadResponse) {}
 
-  // Get upload status
-  rpc GetUploadStatus(GetUploadStatusRequest) returns (GetUploadStatusResponse) {}
+  // New methods to proxy storage service operations
+  rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse) {}
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse) {}
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {}
 }
 
 // Request to initiate file upload
-message InitiateUploadRequest {
+message PrepareUploadRequest {
   string filename = 1;
   int64 file_size_bytes = 2;
-  string file_type = 3; // CSV, JSON, TXT
-  string user_id = 4; // Optional user identification
+  string file_type = 3;  // CSV, JSON, TXT, etc.
+  string jwt_token = 4;  // Added JWT token for authentication
 }
 
 // Response with upload details
-message InitiateUploadResponse {
+message PrepareUploadResponse {
   shared.v1.Response base_response = 1;
-  string upload_id = 2;
-  string storage_endpoint = 3; // Where to upload the actual file
-  string upload_token = 4; // Time-limited upload token
-  int64 expiration_time = 5; // Token expiration timestamp
-}
-
-// Request to complete file upload
-message CompleteUploadRequest {
-  string upload_id = 1;
-  string file_hash = 2; // Optional file integrity check
-  int64 total_chunks = 3; // For potential chunked upload support
-}
-
-// Response after upload completion
-message CompleteUploadResponse {
-  shared.v1.Response base_response = 1;
-  string processed_file_id = 2;
-  bool processing_started = 3;
+  string global_upload_id = 2;        // Renamed from upload_id
+  string storage_path = 3;            // Renamed from storage_endpoint
+  string storage_upload_token = 4;    // New token field
+  int64 expiration_time = 5;          // Existing expiration field
 }
 
 // Request to cancel an upload
 message CancelUploadRequest {
-  string upload_id = 1;
+  string global_upload_id = 1;
   string reason = 2; // Optional cancellation reason
 }
 
@@ -64,24 +49,41 @@ message CancelUploadResponse {
   bool upload_cancelled = 2;
 }
 
-// Request to check upload status
-message GetUploadStatusRequest {
-  string upload_id = 1;
+// Request to retrieve file metadata
+message GetFileMetadataRequest {
+  string file_id = 1;
+  string jwt_token = 2;  // Add authentication
 }
 
-// Response with upload status details
-message GetUploadStatusResponse {
+// Response with file metadata
+message GetFileMetadataResponse {
   shared.v1.Response base_response = 1;
-  enum UploadStatus {
-    UPLOAD_STATUS_UNKNOWN_UNSPECIFIED = 0;
-    UPLOAD_STATUS_INITIATED = 1;
-    UPLOAD_STATUS_UPLOADING = 2;
-    UPLOAD_STATUS_COMPLETED = 3;
-    UPLOAD_STATUS_PROCESSING = 4;
-    UPLOAD_STATUS_FAILED = 5;
-    UPLOAD_STATUS_CANCELLED = 6;
-  }
-  UploadStatus status = 2;
-  int64 bytes_uploaded = 3;
-  string error_message = 4;
+  shared.v1.FileMetadata metadata = 2;
+}
+
+// Request to list files
+message ListFilesRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string jwt_token = 3;  // Authentication
+}
+
+// Response with file list
+message ListFilesResponse {
+  shared.v1.Response base_response = 1;
+  repeated shared.v1.FileMetadata files = 2;
+  int32 total_files = 3;
+  int32 total_pages = 4;
+}
+
+// Request to delete a file
+message DeleteFileRequest {
+  string file_id = 1;
+  string jwt_token = 2;  // Authentication
+}
+
+// Response after file deletion
+message DeleteFileResponse {
+  shared.v1.Response base_response = 1;
+  bool file_deleted = 2;
 }

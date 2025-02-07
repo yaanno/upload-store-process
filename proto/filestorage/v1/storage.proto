@@ -8,8 +8,6 @@ option go_package = "github.com/yaanno/upload-store-process/gen/go/filestorage/v
 
 // FileStorageService manages file storage and retrieval
 service FileStorageService {
-  // Store file metadata
-  rpc StoreFileMetadata(StoreFileMetadataRequest) returns (StoreFileMetadataResponse) {}
 
   // Retrieve file metadata
   rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse) {}
@@ -20,31 +18,14 @@ service FileStorageService {
   // Delete a file
   rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {}
 
-  // Compress file
-  rpc CompressFile(CompressFileRequest) returns (CompressFileResponse) {}
-
   // Prepare storage for a new file upload
   rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
-
-  // Confirm file upload completion
-  rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse) {}
-}
-
-// Request to store file metadata
-message StoreFileMetadataRequest {
-  shared.v1.FileMetadata metadata = 1;
-  string upload_id = 2;
-}
-
-// Response after storing metadata
-message StoreFileMetadataResponse {
-  shared.v1.Response base_response = 1;
-  string file_id = 2;
 }
 
 // Request to retrieve file metadata
 message GetFileMetadataRequest {
   string file_id = 1;
+  string jwt_token = 2;
 }
 
 // Response with file metadata
@@ -59,6 +40,7 @@ message ListFilesRequest {
   int32 page_size = 2;
   string user_id = 3;
   string file_type = 4;
+  string jwt_token = 5;
 }
 
 // Response with file list
@@ -72,7 +54,7 @@ message ListFilesResponse {
 // Request to delete a file
 message DeleteFileRequest {
   string file_id = 1;
-  string user_id = 2;
+  string jwt_token = 2;
 }
 
 // Response after file deletion
@@ -81,48 +63,18 @@ message DeleteFileResponse {
   bool file_deleted = 2;
 }
 
-// Request to compress a file
-message CompressFileRequest {
-  string file_id = 1;
-  enum CompressionLevel {
-    COMPRESSION_LEVEL_DEFAULT_UNSPECIFIED = 0;
-    COMPRESSION_LEVEL_FAST = 1;
-    COMPRESSION_LEVEL_BEST = 2;
-  }
-  CompressionLevel compression_level = 2;
-}
-
-// Response after file compression
-message CompressFileResponse {
-  shared.v1.Response base_response = 1;
-  string compressed_file_id = 2;
-  int64 original_size = 3;
-  int64 compressed_size = 4;
-}
-
 // Request to prepare file storage
 message PrepareUploadRequest {
-  string upload_id = 1;
+  string global_upload_id = 1;
   string filename = 2;
   int64 file_size_bytes = 3;
+  string jwt_token = 4;
 }
 
 // Response with upload storage details
 message PrepareUploadResponse {
   shared.v1.Response base_response = 1;
   string storage_path = 2;
-  string upload_token = 3;
-}
-
-// Request to mark upload as complete
-message CompleteUploadRequest {
-  string upload_id = 1;
-  shared.v1.FileMetadata file_metadata = 2;
-}
-
-// Response after upload completion
-message CompleteUploadResponse {
-  shared.v1.Response base_response = 1;
-  string processed_file_id = 2;
-  bool processing_started = 3;
+  string storage_upload_token = 3;
+  int64 expiration_time = 4;
 }
