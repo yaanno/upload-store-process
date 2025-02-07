@@ -228,7 +228,7 @@ func (s *FileStorageServiceImpl) UploadFile(
 	}
 
 	// Validate upload token
-	if !s.isUploadTokenValid(req.StorageUploadToken, req.FileId) {
+	if !s.IsUploadTokenValid(req.StorageUploadToken, req.FileId) {
 		return nil, status.Errorf(codes.PermissionDenied, "invalid upload token")
 	}
 
@@ -362,7 +362,7 @@ func isAllowedFileType(filename string) bool {
 }
 
 // Optional: Token validation function
-func (s *FileStorageServiceImpl) isUploadTokenValid(token string, fileID string) bool {
+func (s *FileStorageServiceImpl) IsUploadTokenValid(token string, fileID string) bool {
 	if token == "" {
 		return false
 	}

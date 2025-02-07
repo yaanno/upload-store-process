@@ -485,3 +485,177 @@ func TestListFilesBasic(t *testing.T) {
 	mockStorageProvider.AssertExpectations(t)
 	mockTokenValidator.AssertExpectations(t)
 }
+
+// func TestUploadFile(t *testing.T) {
+// 	testCases := []struct {
+// 		name              string
+// 		setupMocks        func(*MockFileMetadataRepository, *MockStorageProvider, *MockTokenValidator)
+// 		request           *storagev1.UploadFileRequest
+// 		expectedResponse  *storagev1.UploadFileResponse
+// 		expectedErrorCode codes.Code
+// 	}{
+// 		{
+// 			name: "Successful File Upload",
+// 			setupMocks: func(mockRepo *MockFileMetadataRepository, mockStorage *MockStorageProvider, mockValidator *MockTokenValidator) {
+// 				// Mock token validation
+// 				// mockValidator.On("ValidateToken", "valid_token").Return(
+// 				// 	&auth.Claims{UserID: "user123"},
+// 				// 	nil,
+// 				// )
+
+// 				mockStorage.On("IsUploadTokenValid", "valid_token", "file123").Return(true)
+
+// 				// Prepare initial metadata
+// 				initialMetadata := &models.FileMetadataRecord{
+// 					ID:               "file123",
+// 					ProcessingStatus: "PENDING",
+// 					Metadata: &sharedv1.FileMetadata{
+// 						FileId:           "file123",
+// 						OriginalFilename: "test.txt",
+// 						UserId:           "user123",
+// 					},
+// 				}
+
+// 				// Expect retrieval of existing metadata
+// 				mockRepo.On("RetrieveFileMetadataByID", mock.Anything, "file123").
+// 					Return(initialMetadata, nil)
+
+// 				// Expect first update to UPLOADING status
+// 				mockRepo.On("UpdateFileMetadata", mock.Anything, mock.MatchedBy(func(metadata *models.FileMetadataRecord) bool {
+// 					return metadata.ProcessingStatus == "UPLOADING"
+// 				})).Return(nil)
+
+// 				// Mock storage provider to store file
+// 				mockStorage.On("StoreFile",
+// 					mock.Anything,
+// 					"file123",
+// 					"test.txt",
+// 					mock.Anything,
+// 				).Return("storage/path/test.txt", nil)
+
+// 				// Expect final update to COMPLETED status
+// 				mockRepo.On("UpdateFileMetadata", mock.Anything, mock.MatchedBy(func(metadata *models.FileMetadataRecord) bool {
+// 					return metadata.ProcessingStatus == "COMPLETED" &&
+// 						metadata.StoragePath == "storage/path/test.txt"
+// 				})).Return(nil)
+// 			},
+// 			request: &storagev1.UploadFileRequest{
+// 				FileId:             "file123",
+// 				StorageUploadToken: "valid_token",
+// 				FileContent:        []byte("test file content"),
+// 				FileSize:           int64(len("test file content")),
+// 			},
+// 			expectedResponse: &storagev1.UploadFileResponse{
+// 				BaseResponse: &sharedv1.Response{
+// 					Message: "File uploaded successfully",
+// 				},
+// 				StoragePath: "storage/path/test.txt",
+// 			},
+// 			expectedErrorCode: codes.OK,
+// 		},
+// 		{
+// 			name: "Invalid Upload Token",
+// 			setupMocks: func(mockRepo *MockFileMetadataRepository, mockStorage *MockStorageProvider, mockValidator *MockTokenValidator) {
+// 				// Mock token validation to fail
+// 				mockStorage.On("IsUploadTokenValid", "invalid_token", "file123").Return(false)
+// 			},
+// 			request: &storagev1.UploadFileRequest{
+// 				FileId:             "file123",
+// 				StorageUploadToken: "invalid_token",
+// 				FileContent:        []byte("test file content"),
+// 				FileSize:           int64(len("test file content")),
+// 			},
+// 			expectedErrorCode: codes.PermissionDenied,
+// 		},
+// 		{
+// 			name: "File Metadata Not Found",
+// 			setupMocks: func(mockRepo *MockFileMetadataRepository, mockStorage *MockStorageProvider, mockValidator *MockTokenValidator) {
+// 				// Mock token validation
+// 				mockStorage.On("IsUploadTokenValid", "valid_token", "file123").Return(true)
+
+// 				// Metadata retrieval fails
+// 				mockRepo.On("RetrieveFileMetadataByID", mock.Anything, "file123").
+// 					Return(nil, errors.New("metadata not found"))
+// 			},
+// 			request: &storagev1.UploadFileRequest{
+// 				FileId:             "file123",
+// 				StorageUploadToken: "valid_token",
+// 				FileContent:        []byte("test file content"),
+// 				FileSize:           int64(len("test file content")),
+// 			},
+// 			expectedErrorCode: codes.NotFound,
+// 		},
+// 		{
+// 			name: "Invalid File Upload State",
+// 			setupMocks: func(mockRepo *MockFileMetadataRepository, mockStorage *MockStorageProvider, mockValidator *MockTokenValidator) {
+// 				// Mock token validation
+// 				mockStorage.On("IsUploadTokenValid", "valid_token", "file123").Return(true)
+
+// 				// Metadata in invalid state
+// 				initialMetadata := &models.FileMetadataRecord{
+// 					ID:               "file123",
+// 					ProcessingStatus: "COMPLETED",
+// 				}
+
+// 				mockRepo.On("RetrieveFileMetadataByID", mock.Anything, "file123").
+// 					Return(initialMetadata, nil)
+// 			},
+// 			request: &storagev1.UploadFileRequest{
+// 				FileId:             "file123",
+// 				StorageUploadToken: "valid_token",
+// 				FileContent:        []byte("test file content"),
+// 				FileSize:           int64(len("test file content")),
+// 			},
+// 			expectedErrorCode: codes.FailedPrecondition,
+// 		},
+// 	}
+
+// 	for _, tc := range testCases {
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			// Create mock dependencies
+// 			mockRepo := new(MockFileMetadataRepository)
+// 			mockLogger := createTestLogger()
+// 			mockStorageProvider := new(MockStorageProvider)
+// 			mockTokenValidator := new(MockTokenValidator)
+
+// 			// Setup service
+// 			service := &FileStorageServiceImpl{
+// 				repo:            mockRepo,
+// 				logger:          mockLogger,
+// 				storageProvider: mockStorageProvider,
+// 				tokenValidator:  mockTokenValidator,
+// 			}
+
+// 			// Setup mocks for the test case
+// 			tc.setupMocks(mockRepo, mockStorageProvider, mockTokenValidator)
+
+// 			mockStorageProvider.On("IsUploadTokenValid", "valid_token", "file123").Return(true)
+
+// 			// Perform the upload
+// 			ctx := context.Background()
+// 			response, err := service.UploadFile(ctx, tc.request)
+
+// 			// Validate results based on expected error code
+// 			if tc.expectedErrorCode == codes.OK {
+// 				require.NoError(t, err)
+// 				require.NotNil(t, response)
+
+// 				// Additional specific assertions for successful upload
+// 				if tc.expectedResponse != nil {
+// 					assert.Equal(t, tc.expectedResponse.StoragePath, response.StoragePath)
+// 					assert.Equal(t, tc.expectedResponse.BaseResponse.Message, response.BaseResponse.Message)
+// 				}
+// 			} else {
+// 				require.Error(t, err)
+// 				status, ok := status.FromError(err)
+// 				require.True(t, ok)
+// 				assert.Equal(t, tc.expectedErrorCode, status.Code())
+// 			}
+
+// 			// Verify mock expectations
+// 			mockRepo.AssertExpectations(t)
+// 			mockStorageProvider.AssertExpectations(t)
+// 			mockTokenValidator.AssertExpectations(t)
+// 		})
+// 	}
+// }
