@@ -71,35 +71,64 @@ func (s *FileStorageServiceImpl) PrepareUpload(
 	// Validate JWT token
 	claims, err := s.tokenValidator.ValidateToken(req.JwtToken)
 	if err != nil {
+		s.logger.Error().
+			Str("method", "PrepareUpload").
+			Str("token", req.JwtToken).
+			Err(err).
+			Msg("failed to validate JWT token")
 		return nil, status.Errorf(codes.Unauthenticated, "invalid JWT token: %v", err)
 	}
 
 	// Validate user ID
 	if claims.UserID == "" {
+		s.logger.Error().
+			Str("method", "PrepareUpload").
+			Str("user_id", claims.UserID).
+			Msg("user ID is empty")
 		return nil, status.Errorf(codes.InvalidArgument, "user ID is required")
 	}
 
 	// Validate global upload ID
 	if req.GlobalUploadId == "" {
+		s.logger.Error().
+			Str("method", "PrepareUpload").
+			Str("global_upload_id", req.GlobalUploadId).
+			Msg("global upload ID is empty")
 		return nil, status.Errorf(codes.InvalidArgument, "global upload ID is required")
 	}
 
 	// Validate filename
 	if req.Filename == "" {
+		s.logger.Error().
+			Str("method", "PrepareUpload").
+			Str("filename", req.Filename).
+			Msg("filename is empty")
 		return nil, status.Errorf(codes.InvalidArgument, "filename is required")
 	}
 
 	if req.FileSizeBytes <= 0 {
+		s.logger.Error().
+			Str("method", "PrepareUpload").
+			Str("file_size_bytes", strconv.FormatInt(req.FileSizeBytes, 10)).
+			Msg("invalid file size")
 		return nil, status.Errorf(codes.InvalidArgument, "invalid file size")
 	}
 
 	// Validate file type
 	if !isAllowedFileType(req.Filename) {
+		s.logger.Error().
+			Str("method", "PrepareUpload").
+			Str("filename", req.Filename).
+			Msg("unsupported file type")
 		return nil, status.Errorf(codes.InvalidArgument, "unsupported file type")
 	}
 
 	// Validate file size
 	if req.FileSizeBytes > 500*1024*1024 { // 500 MB
+		s.logger.Error().
+			Str("method", "PrepareUpload").
+			Str("file_size_bytes", strconv.FormatInt(req.FileSizeBytes, 10)).
+			Msg("file too large")
 		return nil, status.Errorf(codes.InvalidArgument, "file too large")
 	}
 
@@ -159,12 +188,19 @@ func (s *FileStorageServiceImpl) PrepareUpload(
 func (s *FileStorageServiceImpl) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
 	// Validate input
 	if req == nil {
+		s.logger.Error().
+			Str("method", "ListFiles").
+			Msg("list files request cannot be nil")
 		return nil, status.Errorf(codes.InvalidArgument, "list files request cannot be nil")
 	}
 
 	// Validate JWT token
 	claims, err := s.tokenValidator.ValidateToken(req.JwtToken)
 	if err != nil {
+		s.logger.Error().
+			Str("method", "ListFiles").
+			Err(err).
+			Msg("invalid JWT token")
 		return nil, status.Errorf(codes.Unauthenticated, "invalid JWT token: %v", err)
 	}
 
@@ -224,28 +260,50 @@ func (s *FileStorageServiceImpl) UploadFile(
 ) (*storagev1.UploadFileResponse, error) {
 	// Validate input
 	if req == nil {
+		s.logger.Error().
+			Str("method", "UploadFile").
+			Msg("upload request cannot be nil")
 		return nil, status.Errorf(codes.InvalidArgument, "upload request cannot be nil")
 	}
+	// TODO: Validate JWT token
 
 	// Validate upload token
 	if !s.IsUploadTokenValid(req.StorageUploadToken, req.FileId) {
+		s.logger.Error().
+			Str("method", "UploadFile").
+			Msg("invalid upload token")
 		return nil, status.Errorf(codes.PermissionDenied, "invalid upload token")
 	}
 
 	// Retrieve file metadata to confirm upload context
 	metadata, err := s.repo.RetrieveFileMetadataByID(ctx, req.FileId)
 	if err != nil {
+		s.logger.Error().
+			Str("method", "UploadFile").
+			Err(err).
+			Str("fileId", req.FileId).
+			Msg("failed to retrieve file metadata")
 		return nil, status.Errorf(codes.NotFound, "file metadata not found")
 	}
 
 	// Validate that file is in a valid state for upload
 	if metadata.ProcessingStatus != "PENDING" {
+		s.logger.Error().
+			Str("method", "UploadFile").
+			Str("fileId", req.FileId).
+			Str("processingStatus", metadata.ProcessingStatus).
+			Msg("invalid file upload state")
 		return nil, status.Errorf(codes.FailedPrecondition, "invalid file upload state")
 	}
 
 	// Update metadata to UPLOADING status
 	metadata.ProcessingStatus = "UPLOADING"
 	if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
+		s.logger.Error().
+			Str("method", "UploadFile").
+			Err(err).
+			Str("fileId", req.FileId).
+			Msg("failed to update file metadata")
 		return nil, status.Errorf(codes.Internal, "failed to update file metadata")
 	}
 
@@ -259,7 +317,13 @@ func (s *FileStorageServiceImpl) UploadFile(
 	if err != nil {
 		// Rollback metadata status
 		metadata.ProcessingStatus = "PENDING"
-		_ = s.repo.UpdateFileMetadata(ctx, metadata)
+		if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
+			s.logger.Error().
+				Str("method", "UploadFile").
+				Err(err).
+				Str("fileId", req.FileId).
+				Msg("failed to rollback file metadata")
+		}
 		return nil, status.Errorf(codes.Internal, "failed to store file: %v", err)
 	}
 
@@ -270,6 +334,7 @@ func (s *FileStorageServiceImpl) UploadFile(
 
 	if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
 		s.logger.Error().
+			Str("method", "UploadFile").
 			Str("fileID", req.FileId).
 			Err(err).
 			Msg("Failed to update file metadata after upload")

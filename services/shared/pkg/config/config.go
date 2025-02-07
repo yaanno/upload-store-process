@@ -9,18 +9,17 @@ import (
 
 // ServiceConfig represents a base configuration for all services
 type ServiceConfig struct {
-	Server struct {
-		Host string `mapstructure:"host"`
-		Port int    `mapstructure:"port"`
-	} `mapstructure:"server"`
+	Server   ServerConfig        `mapstructure:"server"`
+	Logging  logger.LoggerConfig `mapstructure:"logging"`
+	Database DatabaseConfig      `mapstructure:"database"`
+	NATS     NATSConfig          `mapstructure:"nats"`
+	Storage  Storage             `mapstructure:"storage"`
+	JWT      JWT                 `mapstructure:"jwt"`
+}
 
-	Logging logger.LoggerConfig `mapstructure:"logging"`
-
-	// Extensible for service-specific configurations
-	Database DatabaseConfig `mapstructure:"database"`
-	NATS     NATSConfig     `mapstructure:"nats"`
-	Storage  Storage        `mapstructure:"storage"`
-	JWT      JWT            `mapstructure:"jwt"`
+type ServerConfig struct {
+	Host string `mapstructure:"host"`
+	Port int    `mapstructure:"port"`
 }
 
 type DatabaseConfig struct {

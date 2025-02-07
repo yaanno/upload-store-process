@@ -28,6 +28,26 @@ func main() {
 			JSON:        true,
 			Development: false,
 		},
+		Server: config.ServerConfig{
+			Host: "0.0.0.0",
+			Port: 50051,
+		},
+		Database: config.DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "/data/storage.db",
+		},
+		NATS: config.NATSConfig{
+			Servers: []string{"nats://localhost:4222"},
+			Cluster: "upload-store-cluster",
+		},
+		Storage: config.Storage{
+			Provider: "local",
+			BasePath: "/data/uploads",
+		},
+		JWT: config.JWT{
+			Secret: "secret_key",
+			Issuer: "myservice",
+		},
 	}
 
 	// Load configuration
