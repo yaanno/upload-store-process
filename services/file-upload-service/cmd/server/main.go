@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	uploadv1 "github.com/yaanno/upload-store-process/gen/go/fileupload/v1"
 	"github.com/yaanno/upload-store-process/services/file-upload-service/internal/handler"
@@ -15,6 +17,7 @@ import (
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const serviceName = "file-upload-service"
@@ -32,7 +35,11 @@ func main() {
 	serviceLogger := log.WithService(serviceName)
 	wrappedLogger := logger.Logger{Logger: serviceLogger}
 
-	grpcClientConn, err := grpc.NewClient(cfg.Upload.GRPCAddress)
+	// Signal handling for graceful stopping
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+	grpcClientConn, err := grpc.NewClient(cfg.Upload.GRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	if err != nil {
 		serviceLogger.Error().Err(err).Msg("Failed to initialize gRPC client")
@@ -48,6 +55,8 @@ func main() {
 	// 8. Initialize HTTP Server
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/v1/files/upload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.HandleFileUpload))
+	httpMux.HandleFunc("/v1/files/prepareupload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.PrepareUpload))
+	httpMux.HandleFunc("/v1/files/getmetadata", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.GetFileMetadata))
 	httpMux.HandleFunc("/healthz", healthCheckHandler) // Health check endpoint
 
 	httpServer := &http.Server{
@@ -57,9 +66,22 @@ func main() {
 
 	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	// Wait for stop signal
+	<-stop
+	wrappedLogger.Info().Msg("Shutting down gracefully...")
+
+	// Shutdown timeout
+	shutdownTimeout := 10 * time.Second
+
+	// Create a context with timeout for graceful shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer shutdownCancel()
+
+	// Shutdown HTTP server
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		wrappedLogger.Error().Err(err).Msg("HTTP server shutdown error")
+	}
+
 }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +95,7 @@ func startHttpServer(httpServer *http.Server, serviceLogger logger.Logger, httpS
 		Msg("HTTP server starting")
 
 	if err := httpServer.ListenAndServe(); err != nil {
-		serviceLogger.Error().Err(err).Msg("HTTP server failed")
+		serviceLogger.Info().Msg("HTTP server closed")
 	}
 }
 
