@@ -30,6 +30,17 @@ func (m *MockFileMetadataRepository) UpdateFileMetadata(ctx context.Context, met
 	return args.Error(0)
 }
 
+// RemoveFileMetadata implements repository.FileMetadataRepository.
+func (m *MockFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, fileID string, userID string) (bool, error) {
+	args := m.Called(ctx, fileID, userID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockFileMetadataRepository) SoftDeleteFile(ctx context.Context, fileID, userID string) error {
+	args := m.Called(ctx, fileID, userID)
+	return args.Error(0)
+}
+
 // CreateFileMetadata implements repository.FileMetadataRepository.
 func (m *MockFileMetadataRepository) CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
 	args := m.Called(ctx, metadata)

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package filestorage.v1;
 
+import "google/protobuf/timestamp.proto";
 import "shared/v1/shared.proto";
 
 option go_package = "github.com/yaanno/upload-store-process/gen/go/filestorage/v1";
@@ -58,12 +59,14 @@ message ListFilesResponse {
 message DeleteFileRequest {
   string file_id = 1;
   string jwt_token = 2;
+  bool force_delete = 3;
 }
 
 // Response after file deletion
 message DeleteFileResponse {
   shared.v1.Response base_response = 1;
   bool file_deleted = 2;
+  google.protobuf.Timestamp deleted_at = 3;
 }
 
 // Request to prepare file storage

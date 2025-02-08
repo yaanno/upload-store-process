@@ -32,6 +32,8 @@ type FileMetadataRepository interface {
 	ListFiles(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error)
 	RemoveFileMetadata(ctx context.Context, fileID string) error
 	UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error
+	IsFileOwnedByUser(ctx context.Context, fileID, userID string) (bool, error)
+	SoftDeleteFile(ctx context.Context, fileID, userID string) error
 }
 
 // FileMetadataListOptions provides filtering and pagination for file metadata listing
@@ -587,6 +589,44 @@ func (r *SQLiteFileMetadataRepository) RemoveFileMetadata(ctx context.Context, f
 		Msg("File metadata removed successfully")
 
 	return nil
+}
+
+// IsFileOwnedByUser checks if a file is owned by a user
+func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, fileID, userID string) (bool, error) {
+	// Validate input
+	if fileID == "" {
+		return false, fmt.Errorf("%w: file ID cannot be empty", ErrInvalidInput)
+	}
+	if userID == "" {
+		return false, fmt.Errorf("%w: user ID cannot be empty", ErrInvalidInput)
+	}
+
+	// Prepare query
+	query := `SELECT COUNT(*) FROM file_metadata WHERE id = ? AND user_id = ?`
+	var count int
+	row := r.db.QueryRowContext(ctx, query, fileID, userID)
+	if row.Err() != nil {
+		r.logger.Error().
+			Err(row.Err()).
+			Str("fileId", fileID).
+			Str("userId", userID).
+			Msg("Error checking file ownership")
+		return false, fmt.Errorf("failed to check file ownership: %w", ErrDatabaseOperation)
+	}
+
+	return count > 0, nil
+}
+
+func (r *SQLiteFileMetadataRepository) SoftDeleteFile(ctx context.Context, fileID, userID string) error {
+	query := `
+        UPDATE file_metadata 
+        SET 
+            deleted_at = CURRENT_TIMESTAMP, 
+            is_deleted = 1 
+        WHERE id = ? AND user_id = ?
+    `
+	_, err := r.db.ExecContext(ctx, query, fileID, userID)
+	return err
 }
 
 var _ FileMetadataRepository = (*SQLiteFileMetadataRepository)(nil)

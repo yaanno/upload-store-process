@@ -48,7 +48,9 @@ func (m *DatabaseMigrator) Migrate(ctx context.Context) error {
 		processing_status TEXT NOT NULL,
 		user_id TEXT NOT NULL,
 		created_at DATETIME NOT NULL,
-		updated_at DATETIME NOT NULL
+		updated_at DATETIME NOT NULL,
+		deleted_at DATETIME,
+		is_deleted BOOLEAN DEFAULT 0
 	)`
 
 	// Create index for faster user_id queries

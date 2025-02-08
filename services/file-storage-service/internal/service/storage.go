@@ -14,6 +14,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"path/filepath"
 
@@ -350,13 +351,138 @@ func (s *FileStorageServiceImpl) UploadFile(
 }
 
 // DeleteFile implements v1.FileStorageServiceServer.
-func (s *FileStorageServiceImpl) DeleteFile(context.Context, *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
+func (s *FileStorageServiceImpl) DeleteFile(ctx context.Context, req *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
+	if req == nil {
+		s.logger.Error().
+			Str("method", "DeleteFile").
+			Msg("request cannot be nil")
+		return nil, status.Errorf(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	// Validate JWT token
+	claims, err := s.tokenValidator.ValidateToken(req.JwtToken)
+	if err != nil {
+		s.logger.Error().
+			Str("method", "DeleteFile").
+			Err(err).
+			Msg("invalid JWT token")
+		return nil, status.Errorf(codes.Unauthenticated, "invalid JWT token: %v", err)
+	}
+
+	// Validate file ID
+	if req.FileId == "" {
+		s.logger.Error().
+			Str("method", "DeleteFile").
+			Str("fileId", req.FileId).
+			Msg("file ID cannot be empty")
+		return nil, status.Errorf(codes.InvalidArgument, "file ID cannot be empty")
+	}
+
+	isOwner, err := s.repo.IsFileOwnedByUser(ctx, req.FileId, claims.UserID)
+	if err != nil {
+		s.logger.Error().
+			Str("method", "DeleteFile").
+			Err(err).
+			Str("fileId", req.FileId).
+			Msg("failed to check file ownership")
+		return nil, status.Errorf(codes.Internal, "failed to check file ownership: %v", err)
+	}
+
+	if !isOwner && !req.ForceDelete {
+		s.logger.Warn().
+			Str("method", "DeleteFile").
+			Str("fileId", req.FileId).
+			Str("userId", claims.UserID).
+			Msg("user does not own file")
+		return nil, status.Errorf(codes.PermissionDenied, "user does not own file")
+	}
+
+	// delete file from filesystem
+	// if err := s.storageProvider.DeleteFile(ctx, req.FileId); err != nil {
+	// 	s.logger.Error().
+	// 		Str("method", "DeleteFile").
+	// 		Err(err).
+	// 		Str("fileId", req.FileId).
+	// 		Msg("failed to delete file")
+	// 	return nil, status.Errorf(codes.Internal, "failed to delete file: %v", err)
+	// }
+
+	//  delete file from database
+	if err := s.repo.SoftDeleteFile(ctx, req.FileId, claims.UserID); err != nil {
+		s.logger.Error().
+			Str("method", "DeleteFile").
+			Err(err).
+			Str("fileId", req.FileId).
+			Msg("failed to soft delete file metadata")
+		return nil, status.Errorf(codes.Internal, "failed to soft delete file metadata: %v", err)
+	}
+
+	return &storagev1.DeleteFileResponse{
+		FileDeleted: true,
+		DeletedAt:   timestamppb.Now(),
+		BaseResponse: &sharedv1.Response{
+			Message: "File deleted successfully",
+		},
+	}, nil
 }
 
 // GetFileMetadata implements v1.FileStorageServiceServer.
-func (s *FileStorageServiceImpl) GetFileMetadata(context.Context, *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetFileMetadata not implemented")
+func (s *FileStorageServiceImpl) GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
+
+	// Validate input
+	if req == nil {
+		s.logger.Error().
+			Str("method", "GetFileMetadata").
+			Msg("request cannot be nil")
+		return nil, status.Errorf(codes.InvalidArgument, "list files request cannot be nil")
+	}
+
+	// Validate JWT token
+	_, err := s.tokenValidator.ValidateToken(req.JwtToken)
+	if err != nil {
+		s.logger.Error().
+			Str("method", "GetFileMetadata").
+			Err(err).
+			Msg("invalid JWT token")
+		return nil, status.Errorf(codes.Unauthenticated, "invalid JWT token: %v", err)
+	}
+
+	// Validate file ID
+	if req.FileId == "" {
+		s.logger.Error().
+			Str("method", "GetFileMetadata").
+			Str("fileId", req.FileId).
+			Msg("file ID cannot be empty")
+		return nil, status.Errorf(codes.InvalidArgument, "file ID cannot be empty")
+	}
+
+	metadata, err := s.repo.RetrieveFileMetadataByID(ctx, req.FileId)
+	if err != nil {
+		s.logger.Error().
+			Str("method", "GetFileMetadata").
+			Err(err).
+			Str("fileId", req.FileId).
+			Msg("failed to retrieve file metadata")
+		return nil, status.Errorf(codes.NotFound, "file metadata not found")
+	}
+
+	// TODO: transform metadata to GetFileMetadataResponse
+	fileMetadata := &sharedv1.FileMetadata{
+		FileId:           metadata.ID,
+		OriginalFilename: metadata.Metadata.OriginalFilename,
+		FileSizeBytes:    metadata.Metadata.FileSizeBytes,
+		FileType:         metadata.Metadata.FileType,
+		UploadTimestamp:  metadata.Metadata.UploadTimestamp,
+		UserId:           metadata.Metadata.UserId,
+		StoragePath:      metadata.StoragePath,
+	}
+
+	return &storagev1.GetFileMetadataResponse{
+		BaseResponse: &sharedv1.Response{
+			Message: "File metadata retrieved successfully",
+		},
+		Metadata: fileMetadata,
+	}, nil
 }
 
 // generateSecureFileID creates a cryptographically secure, unique file identifier
