@@ -397,16 +397,6 @@ func (s *FileStorageServiceImpl) DeleteFile(ctx context.Context, req *storagev1.
 		return nil, status.Errorf(codes.PermissionDenied, "user does not own file")
 	}
 
-	// delete file from filesystem
-	// if err := s.storageProvider.DeleteFile(ctx, req.FileId); err != nil {
-	// 	s.logger.Error().
-	// 		Str("method", "DeleteFile").
-	// 		Err(err).
-	// 		Str("fileId", req.FileId).
-	// 		Msg("failed to delete file")
-	// 	return nil, status.Errorf(codes.Internal, "failed to delete file: %v", err)
-	// }
-
 	//  delete file from database
 	if err := s.repo.SoftDeleteFile(ctx, req.FileId, claims.UserID); err != nil {
 		s.logger.Error().
