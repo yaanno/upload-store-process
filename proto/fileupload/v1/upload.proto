@@ -11,6 +11,9 @@ service FileUploadService {
   // Initiate file upload process
   rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
 
+  // Upload a file
+  rpc UploadFile(UploadFileRequest) returns (UploadFileResponse) {}
+
   // Cancel an ongoing upload
   rpc CancelUpload(CancelUploadRequest) returns (CancelUploadResponse) {}
 
@@ -35,6 +38,19 @@ message PrepareUploadResponse {
   string storage_path = 3;            // Renamed from storage_endpoint
   string storage_upload_token = 4;    // New token field
   int64 expiration_time = 5;          // Existing expiration field
+}
+
+message UploadFileRequest {
+  string file_id = 1;
+  string storage_upload_token = 2;
+  bytes file_content = 3;
+}
+
+// Response for uploaded file
+message UploadFileResponse {
+  shared.v1.Response base_response = 1;
+  string file_id = 2;
+  string storage_path = 3;
 }
 
 // Request to cancel an upload

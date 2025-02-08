@@ -9,15 +9,22 @@ import (
 
 // ServiceConfig represents a base configuration for all services
 type ServiceConfig struct {
-	Server   ServerConfig        `mapstructure:"server"`
-	Logging  logger.LoggerConfig `mapstructure:"logging"`
-	Database DatabaseConfig      `mapstructure:"database"`
-	NATS     NATSConfig          `mapstructure:"nats"`
-	Storage  Storage             `mapstructure:"storage"`
-	JWT      JWT                 `mapstructure:"jwt"`
+	Server     ServerConfig        `mapstructure:"server"`
+	HttpServer HttpServerConfig    `mapstructure:"http_server"`
+	Logging    logger.LoggerConfig `mapstructure:"logging"`
+	Database   DatabaseConfig      `mapstructure:"database"`
+	NATS       NATSConfig          `mapstructure:"nats"`
+	Storage    Storage             `mapstructure:"storage"`
+	JWT        JWT                 `mapstructure:"jwt"`
+	Upload     Upload              `mapstructure:"upload"`
 }
 
 type ServerConfig struct {
+	Host string `mapstructure:"host"`
+	Port int    `mapstructure:"port"`
+}
+
+type HttpServerConfig struct {
 	Host string `mapstructure:"host"`
 	Port int    `mapstructure:"port"`
 }
@@ -37,8 +44,14 @@ type NATSConfig struct {
 }
 
 type Storage struct {
-	Provider string `mapstructure:"provider"`
-	BasePath string `mapstructure:"base_path"`
+	Provider    string `mapstructure:"provider"`
+	BasePath    string `mapstructure:"base_path"`
+	MaxFileSize int64  `mapstructure:"max_file_size"`
+}
+
+type Upload struct {
+	MaxFileSize int64  `mapstructure:"max_file_size"`
+	GRPCAddress string `mapstructure:"grpc_address"`
 }
 
 type JWT struct {
