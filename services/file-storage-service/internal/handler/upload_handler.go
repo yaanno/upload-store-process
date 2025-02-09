@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
@@ -23,12 +23,12 @@ type FileUploadHandler interface {
 }
 
 type FileUploadHandlerImpl struct {
-	logger logger.Logger
-	store  storage.FileStorageProvider
+	logger  logger.Logger
+	service service.FileUploadService
 }
 
-func NewFileUploadHandler(logger logger.Logger, store storage.FileStorageProvider) *FileUploadHandlerImpl {
-	return &FileUploadHandlerImpl{logger: logger, store: store}
+func NewFileUploadHandler(logger logger.Logger, service service.FileUploadService) *FileUploadHandlerImpl {
+	return &FileUploadHandlerImpl{logger: logger, service: service}
 }
 
 func (h *FileUploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Request) {
@@ -88,24 +88,39 @@ func (h *FileUploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Lightweight service call
+	// update the metadata in the repository
+	// return with metadata
+	err = h.service.UploadFile(ctx, &service.UploadFileRequest{
+		FileId:             fileId,
+		StorageUploadToken: storageUploadToken,
+		FileSizeBytes:      fileSizeStr,
+		FileContent:        fileContentBuffer,
+	})
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to upload file")
+		http.Error(w, "Failed to upload file", http.StatusInternalServerError)
+		return
+	}
+
 	// TODO: decide if the service should handle this or keep it lightweight
 	// UploadService should handle this
 	// it just might return the error and the metadata after initially creating one
 
 	// Store file
-	storagePath, err := h.store.StoreFile(ctx, fileId, "", fileContentBuffer)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to store file")
-		http.Error(w, "Failed to store file", http.StatusInternalServerError)
-		return
-	}
+	// storagePath, err := h.store.StoreFile(ctx, fileId, "", fileContentBuffer)
+	// if err != nil {
+	// 	h.logger.Error().Err(err).Msg("Failed to store file")
+	// 	http.Error(w, "Failed to store file", http.StatusInternalServerError)
+	// 	return
+	// }
 
 	// TODO: Save metadata
 
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"storage_path": storagePath,
+		"storage_path": "",
 	})
 	w.WriteHeader(http.StatusCreated)
 }

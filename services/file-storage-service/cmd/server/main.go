@@ -59,6 +59,7 @@ func main() {
 
 	// 5. Initialize Repositories, Services, and Middleware
 	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
+	fileUploadService := service.NewFileUploadServiceImpl(fileMetadataRepository, storage)
 	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, storage)
 
 	// 7. Initialize gRPC Server
@@ -74,7 +75,7 @@ func main() {
 
 	// 8. Initialize HTTP Server
 
-	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, storage)
+	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, fileUploadService)
 	healthHandler := handler.NewHealthHandler(&serviceLogger)
 	router := router.SetupRouter(uploadHandler, healthHandler)
 
