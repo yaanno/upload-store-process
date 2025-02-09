@@ -100,7 +100,7 @@ func BenchmarkListFileMetadata(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			listOpts := &repository.FileMetadataListOptions{
+			listOpts := &models.FileMetadataListOptions{
 				UserID: "bench-user",
 				Limit:  1,
 			}
@@ -137,7 +137,7 @@ func BenchmarkComplexFileMetadataQuery(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Example of a more complex query operation
-		complexOpts := &repository.FileMetadataListOptions{
+		complexOpts := &models.FileMetadataListOptions{
 			UserID:    "bench-user",
 			Limit:     50,
 			Offset:    0,
