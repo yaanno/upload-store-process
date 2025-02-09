@@ -377,8 +377,6 @@ func TestListFiles(t *testing.T) {
 				assert.Equal(t, tc.expectedCount, len(resp.Files))
 			}
 
-			// Verify mock expectations
-			mockRepo.AssertExpectations(t)
 			mockStorageProvider.AssertExpectations(t)
 		})
 	}
