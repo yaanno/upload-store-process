@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,7 +13,7 @@ import (
 )
 
 type FileUploadHandler interface {
-	HandleFileUpload(w http.ResponseWriter, r *http.Request)
+	// HandleFileUpload(w http.ResponseWriter, r *http.Request)
 	PrepareUpload(w http.ResponseWriter, r *http.Request)
 	CancelUpload(w http.ResponseWriter, r *http.Request)
 	// ListFiles(w http.ResponseWriter, r *http.Request)
@@ -82,96 +80,9 @@ func (h *FileUploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// TODO: implement the listFiles method
+// TODO: REMOVE - MOVE TO THE NEW OBJECT STORAGE SERVICE
 
-func (h *FileUploadHandlerImpl) HandleFileUpload(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	// Validate request method
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Parse multipart form
-	if err := r.ParseMultipartForm(h.maxFileSize); err != nil {
-		h.logger.Error().Err(err).Msg("Failed to parse multipart form")
-		http.Error(w, "File too large", http.StatusBadRequest)
-		return
-	}
-
-	fileId := r.FormValue("file_id")
-	if fileId == "" {
-		h.logger.Error().Str("field", "file_id").Msg("File ID cannot be empty")
-		http.Error(w, "File ID cannot be empty", http.StatusBadRequest)
-		return
-	}
-
-	// TODO: validate storage upload token
-	storageUploadToken := r.FormValue("storage_upload_token")
-	if storageUploadToken == "" {
-		h.logger.Error().Str("field", "storage_upload_token").Msg("Storage upload token cannot be empty")
-		http.Error(w, "Storage upload token cannot be empty", http.StatusBadRequest)
-		return
-	}
-
-	fileSizeStr := r.FormValue("file_size")
-	if fileSizeStr == "" {
-		h.logger.Error().Str("field", "file_size").Msg("File size cannot be empty")
-		http.Error(w, "File size cannot be empty", http.StatusBadRequest)
-		return
-	}
-
-	// Extract file from request
-	file, handler, err := r.FormFile("file")
-	if err != nil {
-		h.logger.Error().Err(err).Msg("No file uploaded")
-		http.Error(w, "No file uploaded", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	fileContentBuffer := bytes.NewBuffer(nil)
-	buffer := make([]byte, 4*1024)
-	_, err = io.CopyBuffer(fileContentBuffer, io.LimitReader(file, h.maxFileSize), buffer)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to read file")
-		http.Error(w, "Failed to read file", http.StatusInternalServerError)
-		return
-	}
-
-	fileContent := fileContentBuffer.Bytes()
-
-	grpcRequest := &uploadv1.UploadFileRequest{
-		FileId:             fileId,
-		FileContent:        fileContent,
-		StorageUploadToken: storageUploadToken,
-	}
-
-	// Call gRPC service
-	response, err := h.service.UploadFile(ctx, grpcRequest)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("gRPC upload failed")
-		http.Error(w, "Upload failed", http.StatusInternalServerError)
-		return
-	}
-
-	// Log successful upload
-	h.logger.Info().
-		Str("path", response.GetStoragePath()).
-		Str("fileName", handler.Filename).
-		Msg("File uploaded successfully")
-
-	// Return response
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"path":    response.GetStoragePath(),
-		"message": response.GetBaseResponse().Message,
-	})
-}
-
-// TODO: add fileID and StorageUploadToken for validation
+// TODO: REMOVE COMPLETELY FROM THE CODEBASE
 func (h *FileUploadHandlerImpl) CancelUpload(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()

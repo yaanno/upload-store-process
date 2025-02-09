@@ -54,7 +54,7 @@ func main() {
 
 	// 8. Initialize HTTP Server
 	httpMux := http.NewServeMux()
-	httpMux.HandleFunc("/v1/files/upload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.HandleFileUpload))
+	// httpMux.HandleFunc("/v1/files/upload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.HandleFileUpload))
 	httpMux.HandleFunc("/v1/files/prepareupload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.PrepareUpload))
 	httpMux.HandleFunc("/v1/files/getmetadata", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.GetFileMetadata))
 	httpMux.HandleFunc("/healthz", healthCheckHandler) // Health check endpoint

@@ -570,15 +570,6 @@ func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, op
 		return false, fmt.Errorf("invalid list options: %w", err)
 	}
 
-	// Check if file exists
-	if _, err := r.RetrieveFileMetadataByID(ctx, opts.FileID); err != nil {
-		r.logger.Error().
-			Err(err).
-			Str("fileId", opts.FileID).
-			Msg("Error checking file ownership")
-		return false, fmt.Errorf("failed to check file ownership: %w", ErrDatabaseOperation)
-	}
-
 	// Select query: count number of files with given ID and user ID
 
 	query := `SELECT COUNT(*) FROM file_metadata WHERE id = ? AND user_id = ?`

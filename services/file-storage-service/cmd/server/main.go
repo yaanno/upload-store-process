@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,7 +14,9 @@ import (
 
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	interceptor "github.com/yaanno/upload-store-process/services/file-storage-service/interceptor"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/handler"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/router"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
 	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
@@ -68,11 +72,23 @@ func main() {
 	)
 	storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServiceServer)
 
+	// 8. Initialize HTTP Server
+
+	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, storage)
+	healthHandler := handler.NewHealthHandler(&serviceLogger)
+	router := router.SetupRouter(uploadHandler, healthHandler)
+
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", cfg.HttpServer.Host, cfg.HttpServer.Port),
+		Handler: router,
+	}
+
 	// 9. Start Servers in Goroutines
 	go startGrpcServer(grpcServer, grpcLis, wrappedLogger, cfg.Server)
+	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
 
 	// 10. Graceful Shutdown Handling
-	waitForShutdown(grpcServer, wrappedLogger)
+	waitForShutdown(grpcServer, httpServer, wrappedLogger)
 }
 
 func loadConfiguration() (*config.ServiceConfig, error) {
@@ -153,12 +169,24 @@ func startGrpcServer(grpcServer *grpc.Server, lis net.Listener, serviceLogger lo
 	}
 }
 
-func waitForShutdown(grpcServer *grpc.Server, serviceLogger logger.Logger) {
+func startHttpServer(httpServer *http.Server, serviceLogger logger.Logger, httpServerCfg config.HttpServerConfig) {
+	serviceLogger.Info().
+		Str("host", httpServerCfg.Host).
+		Int("port", httpServerCfg.Port).
+		Msg("HTTP server starting")
+
+	if err := httpServer.ListenAndServe(); err != nil {
+		serviceLogger.Info().Msg("HTTP server closed")
+	}
+}
+
+func waitForShutdown(grpcServer *grpc.Server, httpServer *http.Server, serviceLogger logger.Logger) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	serviceLogger.Info().Msg("Shutting down server...")
+	serviceLogger.Info().Msg("Shutting down servers...")
 	grpcServer.GracefulStop()
+	httpServer.Shutdown(context.Background())
 	serviceLogger.Info().Msg("Server shutdown complete")
 }
