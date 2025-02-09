@@ -14,7 +14,6 @@ import (
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
 	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
-	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -53,12 +52,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 5. Initialize Token Generator
-	tokenGenerator := auth.NewTokenGenerator(cfg.JWT.Secret, cfg.JWT.Issuer)
-
-	// 6. Initialize Repositories, Services, and Middleware
+	// 5. Initialize Repositories, Services, and Middleware
 	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
-	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, storage, tokenGenerator)
+	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, storage)
 
 	// 7. Initialize gRPC Server
 	grpcLis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))

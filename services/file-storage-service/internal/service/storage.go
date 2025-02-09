@@ -23,7 +23,6 @@ import (
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
-	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
@@ -41,7 +40,6 @@ type FileStorageServiceImpl struct {
 	repo            repository.FileMetadataRepository
 	logger          logger.Logger
 	storageProvider storage.FileStorageProvider
-	tokenValidator  auth.TokenValidator
 }
 
 // NewFileStorageService creates a new instance of FileStorageService
@@ -49,13 +47,11 @@ func NewFileStorageService(
 	repo repository.FileMetadataRepository,
 	logger logger.Logger,
 	storageProvider storage.FileStorageProvider,
-	tokenValidator auth.TokenValidator,
 ) *FileStorageServiceImpl {
 	return &FileStorageServiceImpl{
 		repo:            repo,
 		logger:          logger,
 		storageProvider: storageProvider,
-		tokenValidator:  tokenValidator,
 	}
 }
 
