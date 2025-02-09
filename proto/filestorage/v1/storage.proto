@@ -82,6 +82,7 @@ message PrepareUploadResponse {
   string storage_path = 2;
   string storage_upload_token = 3;
   int64 expiration_time = 4;
+  string global_upload_id = 5;
 }
 
 // Request to upload a file

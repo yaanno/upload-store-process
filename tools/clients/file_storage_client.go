@@ -30,10 +30,9 @@ func main() {
 
 	// Create a request
 	request := &storagev1.PrepareUploadRequest{
-		Filename:       "example.txt",
-		FileSizeBytes:  1024,
-		GlobalUploadId: "upload_123",
-		UserId:         "user_123",
+		Filename:      "example.txt",
+		FileSizeBytes: 1024,
+		UserId:        "user_123",
 	}
 
 	// Call the RPC method
@@ -43,5 +42,32 @@ func main() {
 	}
 
 	// Process the response
-	log.Printf("Upload token: %s", response.StorageUploadToken)
+	log.Printf("Upload token: %s", response)
+
+	// Upload the file
+	uploadRequest := &storagev1.UploadFileRequest{
+		FileId:             response.GlobalUploadId,
+		StorageUploadToken: response.StorageUploadToken,
+		FileContent:        []byte("Hello, world!"),
+		UserId:             "user_123",
+	}
+
+	uploadResponse, err := client.UploadFile(ctx, uploadRequest)
+	if err != nil {
+		log.Fatalf("Error uploading file: %v", err)
+	}
+
+	log.Printf("File uploaded: %v", uploadResponse)
+
+	metadataRequest := &storagev1.GetFileMetadataRequest{
+		FileId: uploadResponse.FileId,
+		UserId: "user_123",
+	}
+
+	metadataResponse, err := client.GetFileMetadata(ctx, metadataRequest)
+	if err != nil {
+		log.Fatalf("Error getting file metadata: %v", err)
+	}
+
+	log.Printf("File metadata: %v", metadataResponse)
 }

@@ -100,7 +100,7 @@ func loadConfiguration() (*config.ServiceConfig, error) {
 		},
 		Storage: config.Storage{
 			Provider:    "local",
-			BasePath:    "/data/uploads",
+			BasePath:    "./data/uploads",
 			MaxFileSize: 10 * 1024 * 1024,
 		},
 		JWT: config.JWT{

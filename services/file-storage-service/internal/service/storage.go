@@ -3,8 +3,10 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"math"
@@ -106,6 +108,7 @@ func (s *FileStorageServiceImpl) PrepareUpload(
 	return &storagev1.PrepareUploadResponse{
 		StorageUploadToken: uploadToken,
 		StoragePath:        storagePath,
+		GlobalUploadId:     fileID,
 		BaseResponse: &sharedv1.Response{
 			Message: "Upload prepared successfully",
 		},
@@ -181,21 +184,10 @@ func (s *FileStorageServiceImpl) UploadFile(
 	if metadata.ProcessingStatus != "PENDING" {
 		s.logger.Error().
 			Str("method", "UploadFile").
-			Str("fileId", req.FileId).
+			Str("fileId", metadata.ID).
 			Str("processingStatus", metadata.ProcessingStatus).
 			Msg("invalid file upload state")
 		return nil, status.Errorf(codes.FailedPrecondition, "invalid file upload state")
-	}
-
-	// Update metadata to UPLOADING status
-	metadata.ProcessingStatus = "UPLOADING"
-	if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
-		s.logger.Error().
-			Str("method", "UploadFile").
-			Err(err).
-			Str("fileId", req.FileId).
-			Msg("failed to update file metadata")
-		return nil, status.Errorf(codes.Internal, "failed to update file metadata")
 	}
 
 	// Store the file using the storage provider
@@ -212,7 +204,7 @@ func (s *FileStorageServiceImpl) UploadFile(
 			s.logger.Error().
 				Str("method", "UploadFile").
 				Err(err).
-				Str("fileId", req.FileId).
+				Str("fileId", metadata.ID).
 				Msg("failed to rollback file metadata")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to store file: %v", err)
@@ -226,7 +218,7 @@ func (s *FileStorageServiceImpl) UploadFile(
 	if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
 		s.logger.Error().
 			Str("method", "UploadFile").
-			Str("fileID", req.FileId).
+			Str("fileID", metadata.ID).
 			Err(err).
 			Msg("Failed to update file metadata after upload")
 		// Non-critical error, file is already stored
@@ -237,6 +229,7 @@ func (s *FileStorageServiceImpl) UploadFile(
 			Message: "File uploaded successfully",
 		},
 		StoragePath: storagePath,
+		FileId:      metadata.ID,
 	}, nil
 }
 
@@ -268,9 +261,6 @@ func (s *FileStorageServiceImpl) DeleteFile(ctx context.Context, req *storagev1.
 
 // GetFileMetadata implements v1.FileStorageServiceServer.
 func (s *FileStorageServiceImpl) GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
-	if err := s.ValidateGetFileMetadataRequest(ctx, req); err != nil {
-		return nil, err
-	}
 
 	// Retrieve file metadata
 	metadata, err := s.repo.RetrieveFileMetadataByID(ctx, req.FileId)
@@ -281,6 +271,10 @@ func (s *FileStorageServiceImpl) GetFileMetadata(ctx context.Context, req *stora
 			Str("fileId", req.FileId).
 			Msg("failed to retrieve file metadata")
 		return nil, status.Errorf(codes.NotFound, "file metadata not found")
+	}
+
+	if err := s.ValidateGetFileMetadataRequest(ctx, req); err != nil {
+		return nil, err
 	}
 
 	// Transform metadata to GetFileMetadataResponse
@@ -309,9 +303,10 @@ func (s *FileStorageServiceImpl) GetFileMetadata(ctx context.Context, req *stora
 func (s *FileStorageServiceImpl) ValidateUploadFileRequest(ctx context.Context, req *storagev1.UploadFileRequest) error {
 
 	// Validate upload token
-	if !s.IsUploadTokenValid(req.StorageUploadToken, req.FileId) {
+	if err := validateSecureUploadToken(req.StorageUploadToken, req.FileId); err != nil {
 		s.logger.Error().
 			Str("method", "UploadFile").
+			Err(err).
 			Msg("invalid upload token")
 		return status.Errorf(codes.PermissionDenied, "invalid upload token")
 	}
@@ -396,28 +391,73 @@ func generateSecureFileID() (string, error) {
 	return base64.URLEncoding.EncodeToString(hash[:]), nil
 }
 
+var hmacSecretKey = []byte("your-secret-hmac-key") // Replace with your actual secret key
+
 // generateSecureUploadToken creates a time-limited, secure upload token
 func generateSecureUploadToken(fileID string) (string, error) {
-	// Generate 64 bytes of cryptographically secure random data
-	tokenBytes := make([]byte, 64)
-	_, err := rand.Read(tokenBytes)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate secure token: %w", err)
+	expirationTimestamp := time.Now().Add(time.Hour).Unix()
+
+	message := fmt.Sprintf("%s_%d", fileID, expirationTimestamp)
+
+	hmacHasher := hmac.New(sha256.New, hmacSecretKey)
+	hmacHasher.Write([]byte(message))
+	hmacBytes := hmacHasher.Sum(nil)
+
+	hmacBase64 := base64.URLEncoding.EncodeToString(hmacBytes)
+	token := fmt.Sprintf("%d_%s", expirationTimestamp, hmacBase64)
+	return token, nil
+}
+
+func validateSecureUploadToken(token string, fileID string) error {
+	parts := strings.SplitN(token, "_", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid token format: missing timestamp or hash")
 	}
 
-	// Create a hash that includes file ID, random bytes, and current timestamp
-	tokenData := append(tokenBytes, []byte(fileID)...)
-	tokenData = append(tokenData, []byte(time.Now().String())...)
+	expirationTimestampStr := parts[0]
+	hashBase64 := parts[1]
 
-	hash := sha256.Sum256(tokenData)
+	expirationTimestampUnix, err := strconv.ParseInt(expirationTimestampStr, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid token format: invalid timestamp: %w", err)
+	}
+	expirationTime := time.Unix(expirationTimestampUnix, 0)
 
-	// Combine timestamp and base64 encoded hash for additional security
-	token := fmt.Sprintf("%d_%s",
-		time.Now().Add(time.Hour).Unix(), // Token expires in 1 hour
-		base64.URLEncoding.EncodeToString(hash[:]),
-	)
+	if time.Now().After(expirationTime) {
+		return fmt.Errorf("upload token expired")
+	}
 
-	return token, nil
+	decodedHmacBytes, err := base64.URLEncoding.DecodeString(hashBase64)
+	if err != nil {
+		return fmt.Errorf("invalid token format: invalid base64 hash: %w", err)
+	}
+	if len(decodedHmacBytes) != sha256.Size {
+		return fmt.Errorf("invalid token format: hash has incorrect length")
+	}
+	var decodedHmacSignature [sha256.Size]byte
+	copy(decodedHmacSignature[:], decodedHmacBytes)
+
+	message := fmt.Sprintf("%s_%d", fileID, expirationTimestampUnix)
+
+	hmacHasher := hmac.New(sha256.New, hmacSecretKey)
+	hmacHasher.Write([]byte(message))
+	recomputedHmacSlice := hmacHasher.Sum(nil) // recomputedHmacSlice is []byte
+
+	// **Convert recomputedHmacSlice (slice) to recomputedHmacArray ([32]byte array):**
+	var recomputedHmacArray [sha256.Size]byte
+	copy(recomputedHmacArray[:], recomputedHmacSlice)
+
+	// Compare the re-hashed token data with the decoded hash from the token
+	if !compareHashes(recomputedHmacArray, decodedHmacSignature) { // Use recomputedHmacArray now
+		return fmt.Errorf("upload token HMAC signature mismatch: token is invalid or tampered with")
+	}
+
+	return nil // Token is valid
+}
+
+// Helper function to securely compare hashes to prevent timing attacks
+func compareHashes(hash1 [sha256.Size]byte, hash2 [sha256.Size]byte) bool {
+	return subtle.ConstantTimeCompare(hash1[:], hash2[:]) == 1
 }
 
 func determineFileType(filename string) string {

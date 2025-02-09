@@ -100,7 +100,7 @@ func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, m
 	query := `
 		UPDATE file_metadata 
 		SET 
-			metadata = ?, 
+			metadata_json = ?, 
 			storage_path = ?, 
 			processing_status = ?, 
 			updated_at = ?
@@ -570,7 +570,17 @@ func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, op
 		return false, fmt.Errorf("invalid list options: %w", err)
 	}
 
-	// Prepare query
+	// Check if file exists
+	if _, err := r.RetrieveFileMetadataByID(ctx, opts.FileID); err != nil {
+		r.logger.Error().
+			Err(err).
+			Str("fileId", opts.FileID).
+			Msg("Error checking file ownership")
+		return false, fmt.Errorf("failed to check file ownership: %w", ErrDatabaseOperation)
+	}
+
+	// Select query: count number of files with given ID and user ID
+
 	query := `SELECT COUNT(*) FROM file_metadata WHERE id = ? AND user_id = ?`
 	var count int
 	row := r.db.QueryRowContext(ctx, query, opts.FileID, opts.UserID)
@@ -583,6 +593,14 @@ func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, op
 		return false, fmt.Errorf("failed to check file ownership: %w", ErrDatabaseOperation)
 	}
 
+	if err := row.Scan(&count); err != nil {
+		r.logger.Error().
+			Err(err).
+			Str("fileId", opts.FileID).
+			Str("userId", opts.UserID).
+			Msg("Error scanning file ownership count")
+		return false, fmt.Errorf("failed to check file ownership: %w", ErrDatabaseOperation)
+	}
 	return count > 0, nil
 }
 
