@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
+	interceptor "github.com/yaanno/upload-store-process/services/file-storage-service/interceptor"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
 	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
@@ -62,7 +63,9 @@ func main() {
 		serviceLogger.Error().Err(err).Str("host", cfg.Server.Host).Int("port", cfg.Server.Port).Msg("Failed to create gRPC listener, service exiting")
 		os.Exit(1)
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(interceptor.ValidationInterceptor()),
+	)
 	storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServiceServer)
 
 	// 9. Start Servers in Goroutines

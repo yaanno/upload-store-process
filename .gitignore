@@ -55,7 +55,6 @@ bin/
 out/
 
 # Generated files
-gen/
 generated/
 
 # Protobuf generated files

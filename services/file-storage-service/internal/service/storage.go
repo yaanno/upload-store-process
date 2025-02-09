@@ -60,11 +60,6 @@ func (s *FileStorageServiceImpl) PrepareUpload(
 	ctx context.Context,
 	req *storagev1.PrepareUploadRequest,
 ) (*storagev1.PrepareUploadResponse, error) {
-
-	if err := s.ValidatePrepareUploadRequest(ctx, req); err != nil {
-		return nil, err
-	}
-
 	// Generate secure file ID
 	fileID, err := generateSecureFileID()
 	if err != nil {
@@ -119,11 +114,6 @@ func (s *FileStorageServiceImpl) PrepareUpload(
 
 // ListFiles retrieves a list of files for a user
 func (s *FileStorageServiceImpl) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
-	// Validate input
-	if err := s.ValidateListFilesRequest(ctx, req); err != nil {
-		return nil, err
-	}
-
 	// Calculate pagination
 	pageSize := int32(req.PageSize)
 	pageNum := int32(req.Page)
@@ -313,66 +303,10 @@ func (s *FileStorageServiceImpl) GetFileMetadata(ctx context.Context, req *stora
 	}, nil
 }
 
-// Request validators
-
-// ValidateUploadRequest validates the upload request
-func (s *FileStorageServiceImpl) ValidatePrepareUploadRequest(ctx context.Context, req *storagev1.PrepareUploadRequest) error {
-	if req == nil {
-		return status.Errorf(codes.InvalidArgument, "request cannot be nil")
-	}
-	// Validate user ID
-	if req.UserId == "" {
-		s.logger.Error().
-			Str("method", "ValidateUploadRequest").
-			Str("user_id", req.UserId).
-			Msg("user ID is empty")
-		return status.Errorf(codes.InvalidArgument, "user ID is empty")
-	}
-
-	// Validate file name
-	if req.Filename == "" {
-		s.logger.Error().
-			Str("method", "ValidateUploadRequest").
-			Str("filename", req.Filename).
-			Msg("filename is empty")
-		return status.Errorf(codes.InvalidArgument, "filename is empty")
-	}
-	// Validate file size
-	if req.FileSizeBytes <= 0 {
-		s.logger.Error().
-			Str("method", "ValidateUploadRequest").
-			Int64("filesize", req.FileSizeBytes).
-			Msg("filesize is empty")
-		return status.Errorf(codes.InvalidArgument, "filesize is empty")
-	}
-	// Validate file size
-	if req.FileSizeBytes > 500*1024*1024 { // 500 MB
-		s.logger.Error().
-			Str("method", "PrepareUpload").
-			Str("file_size_bytes", strconv.FormatInt(req.FileSizeBytes, 10)).
-			Msg("file too large")
-		return status.Errorf(codes.InvalidArgument, "file too large")
-	}
-	// Validate file type
-	if !isAllowedFileType(req.Filename) {
-		s.logger.Error().
-			Str("method", "PrepareUpload").
-			Str("filename", req.Filename).
-			Msg("unsupported file type")
-		return status.Errorf(codes.InvalidArgument, "unsupported file type")
-	}
-	return nil
-}
+// Internal Request validators
 
 // ValidateUploadRequest validates the upload request
 func (s *FileStorageServiceImpl) ValidateUploadFileRequest(ctx context.Context, req *storagev1.UploadFileRequest) error {
-	if req == nil {
-		s.logger.Error().
-			Str("method", "UploadFile").
-			Msg("upload request cannot be nil")
-		return status.Errorf(codes.InvalidArgument, "upload request cannot be nil")
-	}
-	// TODO: Validate JWT token
 
 	// Validate upload token
 	if !s.IsUploadTokenValid(req.StorageUploadToken, req.FileId) {
@@ -386,29 +320,6 @@ func (s *FileStorageServiceImpl) ValidateUploadFileRequest(ctx context.Context, 
 
 // ValidateDeleteRequest validates the delete request
 func (s *FileStorageServiceImpl) ValidateDeleteFileRequest(ctx context.Context, req *storagev1.DeleteFileRequest) error {
-	if req == nil {
-		s.logger.Error().
-			Str("method", "DeleteFile").
-			Msg("delete request cannot be nil")
-		return status.Errorf(codes.InvalidArgument, "delete request cannot be nil")
-	}
-	// Validate user ID
-	if req.UserId == "" {
-		s.logger.Error().
-			Str("method", "DeleteFile").
-			Str("user_id", req.UserId).
-			Msg("user ID is empty")
-		return status.Errorf(codes.InvalidArgument, "user ID is required")
-	}
-
-	// Validate file ID
-	if req.FileId == "" {
-		s.logger.Error().
-			Str("method", "DeleteFile").
-			Str("fileId", req.FileId).
-			Msg("file ID cannot be empty")
-		return status.Errorf(codes.InvalidArgument, "file ID cannot be empty")
-	}
 
 	opts := &models.FileMetadataListOptions{
 		UserID: req.UserId,
@@ -437,66 +348,8 @@ func (s *FileStorageServiceImpl) ValidateDeleteFileRequest(ctx context.Context, 
 	return nil
 }
 
-// ValidateListFilesRequest validates the list files request
-func (s *FileStorageServiceImpl) ValidateListFilesRequest(ctx context.Context, req *storagev1.ListFilesRequest) error {
-	if req == nil {
-		s.logger.Error().
-			Str("method", "ListFiles").
-			Msg("list files request cannot be nil")
-		return status.Errorf(codes.InvalidArgument, "list files request cannot be nil")
-	}
-
-	if req.UserId == "" {
-		s.logger.Error().
-			Str("method", "ListFiles").
-			Str("user_id", req.UserId).
-			Msg("user ID is empty")
-		return status.Errorf(codes.InvalidArgument, "user ID is required")
-	}
-
-	if req.Page < 1 {
-		s.logger.Error().
-			Str("method", "ListFiles").
-			Int32("page", req.Page).
-			Msg("page must be at least 1")
-		return status.Errorf(codes.InvalidArgument, "page must be at least 1")
-	}
-
-	if req.PageSize <= 0 {
-		s.logger.Error().
-			Str("method", "ListFiles").
-			Int32("page_size", req.PageSize).
-			Msg("page size must be at least 1")
-		return status.Errorf(codes.InvalidArgument, "page size must be at least 1")
-	}
-
-	return nil
-}
-
 // ValidateGetFileMetadataRequest validates the get file metadata request
 func (s *FileStorageServiceImpl) ValidateGetFileMetadataRequest(ctx context.Context, req *storagev1.GetFileMetadataRequest) error {
-	if req == nil {
-		s.logger.Error().
-			Str("method", "GetFileMetadata").
-			Msg("get file metadata request cannot be nil")
-		return status.Errorf(codes.InvalidArgument, "get file metadata request cannot be nil")
-	}
-
-	if req.UserId == "" {
-		s.logger.Error().
-			Str("method", "GetFileMetadata").
-			Str("user_id", req.UserId).
-			Msg("user ID is empty")
-		return status.Errorf(codes.InvalidArgument, "user ID is required")
-	}
-
-	if req.FileId == "" {
-		s.logger.Error().
-			Str("method", "GetFileMetadata").
-			Str("file_id", req.FileId).
-			Msg("file ID cannot be empty")
-		return status.Errorf(codes.InvalidArgument, "file ID cannot be empty")
-	}
 
 	opts := &models.FileMetadataListOptions{
 		UserID: req.UserId,
@@ -581,17 +434,6 @@ func determineFileType(filename string) string {
 	default:
 		return "application/octet-stream"
 	}
-}
-
-func isAllowedFileType(filename string) bool {
-	allowedExtensions := []string{".csv", ".json", ".txt"}
-	ext := strings.ToLower(filepath.Ext(filename))
-	for _, allowed := range allowedExtensions {
-		if ext == allowed {
-			return true
-		}
-	}
-	return false
 }
 
 // Optional: Token validation function
