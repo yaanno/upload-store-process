@@ -8,13 +8,13 @@ import (
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
 	// Create a connection to the server
-	conn, err := grpc.Dial("localhost:50051",
-		grpc.WithInsecure(), // Use WithTransportCredentials() in production
-		grpc.WithTimeout(5*time.Second),
+	conn, err := grpc.NewClient("localhost:50051",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
@@ -32,8 +32,8 @@ func main() {
 	request := &storagev1.PrepareUploadRequest{
 		Filename:       "example.txt",
 		FileSizeBytes:  1024,
-		JwtToken:       "valid_token",
 		GlobalUploadId: "upload_123",
+		UserId:         "user_123",
 	}
 
 	// Call the RPC method

@@ -82,8 +82,6 @@ func (h *FileUploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// TODO: implement the prepareUpload method
-// TODO: implement the cancelUpload method
 // TODO: implement the listFiles method
 
 func (h *FileUploadHandlerImpl) HandleFileUpload(w http.ResponseWriter, r *http.Request) {

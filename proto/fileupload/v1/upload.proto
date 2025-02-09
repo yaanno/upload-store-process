@@ -28,7 +28,7 @@ message PrepareUploadRequest {
   string filename = 1;
   int64 file_size_bytes = 2;
   string file_type = 3;  // CSV, JSON, TXT, etc.
-  string jwt_token = 4;  // Added JWT token for authentication
+  string user_id = 4;  // Added user ID for authentication
 }
 
 // Response with upload details
@@ -44,6 +44,7 @@ message UploadFileRequest {
   string file_id = 1;
   string storage_upload_token = 2;
   bytes file_content = 3;
+  string user_id = 4;
 }
 
 // Response for uploaded file
@@ -57,6 +58,7 @@ message UploadFileResponse {
 message CancelUploadRequest {
   string global_upload_id = 1;
   string reason = 2; // Optional cancellation reason
+  string user_id = 3;  // Added user ID for authentication
 }
 
 // Response for upload cancellation
@@ -68,7 +70,7 @@ message CancelUploadResponse {
 // Request to retrieve file metadata
 message GetFileMetadataRequest {
   string file_id = 1;
-  string jwt_token = 2;  // Add authentication
+  string user_id = 2;  // Added user ID for authentication
 }
 
 // Response with file metadata
@@ -81,7 +83,7 @@ message GetFileMetadataResponse {
 message ListFilesRequest {
   int32 page = 1;
   int32 page_size = 2;
-  string jwt_token = 3;  // Authentication
+  string user_id = 3;  // Added user ID for authentication
 }
 
 // Response with file list
@@ -95,7 +97,8 @@ message ListFilesResponse {
 // Request to delete a file
 message DeleteFileRequest {
   string file_id = 1;
-  string jwt_token = 2;  // Authentication
+  bool force_delete = 3;
+  string user_id = 4;  // Added user ID for authentication
 }
 
 // Response after file deletion

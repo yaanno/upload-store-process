@@ -29,7 +29,7 @@ service FileStorageService {
 // Request to retrieve file metadata
 message GetFileMetadataRequest {
   string file_id = 1;
-  string jwt_token = 2;
+  string user_id = 2;
 }
 
 // Response with file metadata
@@ -44,7 +44,6 @@ message ListFilesRequest {
   int32 page_size = 2;
   string user_id = 3;
   string file_type = 4;
-  string jwt_token = 5;
 }
 
 // Response with file list
@@ -58,8 +57,8 @@ message ListFilesResponse {
 // Request to delete a file
 message DeleteFileRequest {
   string file_id = 1;
-  string jwt_token = 2;
-  bool force_delete = 3;
+  bool force_delete = 2;
+  string user_id = 3;
 }
 
 // Response after file deletion
@@ -74,7 +73,7 @@ message PrepareUploadRequest {
   string global_upload_id = 1;
   string filename = 2;
   int64 file_size_bytes = 3;
-  string jwt_token = 4;
+  string user_id = 4;
 }
 
 // Response with upload storage details
@@ -91,6 +90,7 @@ message UploadFileRequest {
   string storage_upload_token = 2;    // Token received from PrepareUpload
   bytes file_content = 3;             // Actual file content
   int64 file_size = 4;                // Size of the file for validation
+  string user_id = 5;                 // User ID for authentication
 }
 
 // Response after file upload

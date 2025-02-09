@@ -28,21 +28,12 @@ var (
 type FileMetadataRepository interface {
 	CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error
 	RetrieveFileMetadataByID(ctx context.Context, fileID string) (*models.FileMetadataRecord, error)
-	ListFileMetadata(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, error)
-	ListFiles(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error)
+	ListFileMetadata(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, error)
+	ListFiles(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error)
 	RemoveFileMetadata(ctx context.Context, fileID string) error
 	UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error
-	IsFileOwnedByUser(ctx context.Context, fileID, userID string) (bool, error)
+	IsFileOwnedByUser(ctx context.Context, opts *models.FileMetadataListOptions) (bool, error)
 	SoftDeleteFile(ctx context.Context, fileID, userID string) error
-}
-
-// FileMetadataListOptions provides filtering and pagination for file metadata listing
-type FileMetadataListOptions struct {
-	UserID    string
-	Limit     int
-	Offset    int
-	SortBy    string
-	SortOrder string
 }
 
 // SQLiteFileMetadataRepository implements FileMetadataRepository for SQLite
@@ -61,13 +52,10 @@ func NewSQLiteFileMetadataRepository(db *sql.DB, logger logger.Logger) *SQLiteFi
 
 // UpdateFileMetadata updates an existing file metadata record
 func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
-	// Validate input
-	if metadata == nil {
-		return fmt.Errorf("%w: file metadata cannot be nil", ErrInvalidInput)
-	}
 
-	if metadata.ID == "" {
-		return fmt.Errorf("%w: file ID is required", ErrInvalidInput)
+	// Validate metadata model
+	if err := metadata.Validate(); err != nil {
+		return fmt.Errorf("invalid file metadata: %w", err)
 	}
 
 	// Convert FileMetadata to JSON
@@ -136,14 +124,6 @@ func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, m
 
 // CreateFileMetadata saves file metadata with transaction support and upsert logic
 func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
-	// Validate input with more robust checks
-	if metadata == nil {
-		return fmt.Errorf("%w: file metadata cannot be nil", ErrInvalidInput)
-	}
-
-	if metadata.ID == "" {
-		return fmt.Errorf("%w: file ID is required", ErrInvalidInput)
-	}
 
 	// Validate metadata model
 	if err := metadata.Validate(); err != nil {
@@ -342,14 +322,9 @@ func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Cont
 }
 
 // ListFileMetadata retrieves file metadata with advanced pagination and filtering
-func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, error) {
-	// Validate input
-	if opts == nil {
-		return nil, fmt.Errorf("%w: list options cannot be nil", ErrInvalidInput)
-	}
-
-	if opts.UserID == "" {
-		return nil, fmt.Errorf("%w: user ID is required", ErrInvalidInput)
+func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, error) {
+	if err := opts.ValidateEssential(); err != nil {
+		return nil, fmt.Errorf("invalid list options: %w", err)
 	}
 
 	// Normalize pagination
@@ -446,14 +421,11 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 }
 
 // ListFiles retrieves file metadata with advanced pagination and filtering
-func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error) {
-	// Validate input
-	if opts == nil {
-		return nil, 0, fmt.Errorf("%w: list options cannot be nil", ErrInvalidInput)
-	}
+func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error) {
 
-	if opts.UserID == "" {
-		return nil, 0, fmt.Errorf("%w: user ID is required", ErrInvalidInput)
+	// Validate options
+	if err := opts.Validate(); err != nil {
+		return nil, 0, fmt.Errorf("invalid list options: %w", err)
 	}
 
 	// Normalize pagination
@@ -592,24 +564,21 @@ func (r *SQLiteFileMetadataRepository) RemoveFileMetadata(ctx context.Context, f
 }
 
 // IsFileOwnedByUser checks if a file is owned by a user
-func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, fileID, userID string) (bool, error) {
+func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, opts *models.FileMetadataListOptions) (bool, error) {
 	// Validate input
-	if fileID == "" {
-		return false, fmt.Errorf("%w: file ID cannot be empty", ErrInvalidInput)
-	}
-	if userID == "" {
-		return false, fmt.Errorf("%w: user ID cannot be empty", ErrInvalidInput)
+	if err := opts.ValidateEssential(); err != nil {
+		return false, fmt.Errorf("invalid list options: %w", err)
 	}
 
 	// Prepare query
 	query := `SELECT COUNT(*) FROM file_metadata WHERE id = ? AND user_id = ?`
 	var count int
-	row := r.db.QueryRowContext(ctx, query, fileID, userID)
+	row := r.db.QueryRowContext(ctx, query, opts.FileID, opts.UserID)
 	if row.Err() != nil {
 		r.logger.Error().
 			Err(row.Err()).
-			Str("fileId", fileID).
-			Str("userId", userID).
+			Str("fileId", opts.FileID).
+			Str("userId", opts.UserID).
 			Msg("Error checking file ownership")
 		return false, fmt.Errorf("failed to check file ownership: %w", ErrDatabaseOperation)
 	}
