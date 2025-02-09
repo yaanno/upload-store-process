@@ -6,7 +6,7 @@ import (
 
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
+	storage "github.com/yaanno/upload-store-process/services/file-storage-service/pkg/filesystem"
 )
 
 type UploadFileRequest struct {

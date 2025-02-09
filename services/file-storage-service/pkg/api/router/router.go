@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/handler"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/pkg/api/handler"
 )
 
 func SetupRouter(uploadHandler handler.FileUploadHandler, healthCheckHandler handler.HealthHandler) chi.Router {
@@ -27,8 +27,13 @@ func SetupRouter(uploadHandler handler.FileUploadHandler, healthCheckHandler han
 	r.Route("/api/v1", func(r chi.Router) {
 		// Health check
 		r.Get("/healthz", healthCheckHandler.Healtz)
-		// File upload
-		r.Post("/upload", uploadHandler.CreateFile)
+		// Bucket operations
+		// r.Put("/bucket", uploadHandler.CreateBucket)
+		// r.Delete("/bucket", uploadHandler.DeleteBucket)
+		// r.Get("/buckets", uploadHandler.GetBuckets)
+		// r.Get("/bucket", uploadHandler.GetBucket)
+		// File operations
+		r.Put("/upload", uploadHandler.CreateFile)
 		r.Get("/get/:fileId", uploadHandler.GetFile)
 		r.Delete("/delete/:fileId", uploadHandler.DeleteFile)
 	})

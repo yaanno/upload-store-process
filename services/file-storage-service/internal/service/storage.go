@@ -23,7 +23,7 @@ import (
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
+	storage "github.com/yaanno/upload-store-process/services/file-storage-service/pkg/filesystem"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 

@@ -24,18 +24,6 @@ var (
 	ErrDatabaseOperation = errors.New("database operation failed")
 )
 
-// FileMetadataRepository defines the interface for file metadata storage operations
-type FileMetadataRepository interface {
-	CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error
-	RetrieveFileMetadataByID(ctx context.Context, fileID string) (*models.FileMetadataRecord, error)
-	ListFileMetadata(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, error)
-	ListFiles(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error)
-	RemoveFileMetadata(ctx context.Context, fileID string) error
-	UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error
-	IsFileOwnedByUser(ctx context.Context, opts *models.FileMetadataListOptions) (bool, error)
-	SoftDeleteFile(ctx context.Context, fileID, userID string) error
-}
-
 // SQLiteFileMetadataRepository implements FileMetadataRepository for SQLite
 type SQLiteFileMetadataRepository struct {
 	db     *sql.DB
@@ -606,5 +594,3 @@ func (r *SQLiteFileMetadataRepository) SoftDeleteFile(ctx context.Context, fileI
 	_, err := r.db.ExecContext(ctx, query, fileID, userID)
 	return err
 }
-
-var _ FileMetadataRepository = (*SQLiteFileMetadataRepository)(nil)
