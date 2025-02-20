@@ -4,9 +4,9 @@ import (
 	"context"
 	"io"
 
+	storage "github.com/yaanno/upload-store-process/services/file-storage-service/internal/filesystem"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
-	storage "github.com/yaanno/upload-store-process/services/file-storage-service/pkg/filesystem"
 )
 
 type UploadFileRequest struct {

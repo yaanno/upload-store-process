@@ -14,12 +14,11 @@ import (
 
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	interceptor "github.com/yaanno/upload-store-process/services/file-storage-service/interceptor"
+	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/api/handler"
+	router "github.com/yaanno/upload-store-process/services/file-storage-service/internal/api/router"
+	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/filesystem"
 	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository/sqlite"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
-	handler "github.com/yaanno/upload-store-process/services/file-storage-service/pkg/api/handler"
-	router "github.com/yaanno/upload-store-process/services/file-storage-service/pkg/api/router"
-	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/pkg/filesystem"
-	storageService "github.com/yaanno/upload-store-process/services/file-storage-service/pkg/objectstorage"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -60,7 +59,7 @@ func main() {
 
 	// 5. Initialize Repositories, Services, and Middleware
 	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
-	fileUploadService := storageService.NewFileUploadServiceImpl(fileMetadataRepository, storage)
+	fileUploadService := service.NewFileUploadServiceImpl(fileMetadataRepository, storage)
 	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, storage)
 
 	// 7. Initialize gRPC Server

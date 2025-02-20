@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/pkg/api/handler"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/api/handler"
 )
 
 func SetupRouter(uploadHandler handler.FileUploadHandler, healthCheckHandler handler.HealthHandler) chi.Router {
