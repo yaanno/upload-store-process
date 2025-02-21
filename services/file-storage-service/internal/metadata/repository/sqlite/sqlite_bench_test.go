@@ -8,8 +8,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
-	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository/sqlite"
+	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata/repository/sqlite"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
@@ -47,7 +47,7 @@ func BenchmarkCreateFileMetadata(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				// Create batch of file metadata records
 				for j := 0; j < bm.batchSize; j++ {
-					metadata := &models.FileMetadataRecord{
+					metadata := &domain.FileMetadataRecord{
 						ID: fmt.Sprintf("file-%d-%d", i, j),
 						Metadata: &sharedv1.FileMetadata{
 							OriginalFilename: fmt.Sprintf("test-file-%d-%d.txt", i, j),
@@ -79,7 +79,7 @@ func BenchmarkListFileMetadata(b *testing.B) {
 	ctx := context.Background()
 	totalRecords := 1000
 	for i := 0; i < totalRecords; i++ {
-		metadata := &models.FileMetadataRecord{
+		metadata := &domain.FileMetadataRecord{
 			ID: fmt.Sprintf("file-%d", i),
 			Metadata: &sharedv1.FileMetadata{
 				OriginalFilename: fmt.Sprintf("test-file-%d.txt", i),
@@ -100,7 +100,7 @@ func BenchmarkListFileMetadata(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			listOpts := &models.FileMetadataListOptions{
+			listOpts := &domain.FileMetadataListOptions{
 				UserID: "bench-user",
 				Limit:  1,
 			}
@@ -137,7 +137,7 @@ func BenchmarkComplexFileMetadataQuery(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Example of a more complex query operation
-		complexOpts := &models.FileMetadataListOptions{
+		complexOpts := &domain.FileMetadataListOptions{
 			UserID:    "bench-user",
 			Limit:     50,
 			Offset:    0,

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
+	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
@@ -39,7 +39,7 @@ func NewSQLiteFileMetadataRepository(db *sql.DB, logger logger.Logger) *SQLiteFi
 }
 
 // UpdateFileMetadata updates an existing file metadata record
-func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
+func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, metadata *domain.FileMetadataRecord) error {
 
 	// Validate metadata model
 	if err := metadata.Validate(); err != nil {
@@ -111,7 +111,7 @@ func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, m
 }
 
 // CreateFileMetadata saves file metadata with transaction support and upsert logic
-func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
+func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, metadata *domain.FileMetadataRecord) error {
 
 	// Validate metadata model
 	if err := metadata.Validate(); err != nil {
@@ -239,7 +239,7 @@ func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, m
 }
 
 // RetrieveFileMetadataByID retrieves file metadata by ID with enhanced security
-func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Context, fileID string) (*models.FileMetadataRecord, error) {
+func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error) {
 	// Validate input
 	if fileID == "" {
 		return nil, fmt.Errorf("%w: file ID cannot be empty", ErrInvalidInput)
@@ -263,7 +263,7 @@ func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Cont
 	row := r.db.QueryRowContext(ctx, query, fileID)
 
 	// Scan result into metadata model
-	metadata := &models.FileMetadataRecord{}
+	metadata := &domain.FileMetadataRecord{}
 	var fileMetadataJSON []byte
 	var userID string
 	err := row.Scan(
@@ -310,7 +310,7 @@ func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Cont
 }
 
 // ListFileMetadata retrieves file metadata with advanced pagination and filtering
-func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, error) {
+func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) ([]*domain.FileMetadataRecord, error) {
 	if err := opts.ValidateEssential(); err != nil {
 		return nil, fmt.Errorf("invalid list options: %w", err)
 	}
@@ -360,9 +360,9 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 	}
 	defer rows.Close()
 
-	var fileMetadataRecords []*models.FileMetadataRecord
+	var fileMetadataRecords []*domain.FileMetadataRecord
 	for rows.Next() {
-		metadata := &models.FileMetadataRecord{}
+		metadata := &domain.FileMetadataRecord{}
 		var fileMetadataJSON []byte
 		var userID string
 		err := rows.Scan(
@@ -409,7 +409,7 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 }
 
 // ListFiles retrieves file metadata with advanced pagination and filtering
-func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error) {
+func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *domain.FileMetadataListOptions) ([]*domain.FileMetadataRecord, int, error) {
 
 	// Validate options
 	if err := opts.Validate(); err != nil {
@@ -461,9 +461,9 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *mode
 	}
 	defer rows.Close()
 
-	var fileMetadataRecords []*models.FileMetadataRecord
+	var fileMetadataRecords []*domain.FileMetadataRecord
 	for rows.Next() {
-		metadata := &models.FileMetadataRecord{}
+		metadata := &domain.FileMetadataRecord{}
 		var fileMetadataJSON []byte
 		var userID string
 		err := rows.Scan(
@@ -552,7 +552,7 @@ func (r *SQLiteFileMetadataRepository) RemoveFileMetadata(ctx context.Context, f
 }
 
 // IsFileOwnedByUser checks if a file is owned by a user
-func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, opts *models.FileMetadataListOptions) (bool, error) {
+func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, opts *domain.FileMetadataListOptions) (bool, error) {
 	// Validate input
 	if err := opts.ValidateEssential(); err != nil {
 		return false, fmt.Errorf("invalid list options: %w", err)

@@ -1,4 +1,4 @@
-package service_test
+package repository_test
 
 import (
 	"context"
@@ -11,8 +11,9 @@ import (
 
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
+	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+
+	// "github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -23,13 +24,13 @@ type MockFileMetadataRepository struct {
 }
 
 // UpdateFileMetadata implements repository.FileMetadataRepository.
-func (m *MockFileMetadataRepository) UpdateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
+func (m *MockFileMetadataRepository) UpdateFileMetadata(ctx context.Context, metadata *domain.FileMetadataRecord) error {
 	args := m.Called(ctx, metadata)
 	return args.Error(0)
 }
 
 // RemoveFileMetadata implements repository.FileMetadataRepository.
-func (m *MockFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, options *models.FileMetadataListOptions) (bool, error) {
+func (m *MockFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, options *domain.FileMetadataListOptions) (bool, error) {
 	args := m.Called(ctx, options)
 	return args.Bool(0), args.Error(1)
 }
@@ -40,33 +41,33 @@ func (m *MockFileMetadataRepository) SoftDeleteFile(ctx context.Context, fileID,
 }
 
 // CreateFileMetadata implements repository.FileMetadataRepository.
-func (m *MockFileMetadataRepository) CreateFileMetadata(ctx context.Context, metadata *models.FileMetadataRecord) error {
+func (m *MockFileMetadataRepository) CreateFileMetadata(ctx context.Context, metadata *domain.FileMetadataRecord) error {
 	args := m.Called(ctx, metadata)
 	return args.Error(0)
 }
 
-func (m *MockFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Context, fileID string) (*models.FileMetadataRecord, error) {
+func (m *MockFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error) {
 	args := m.Called(ctx, fileID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.FileMetadataRecord), args.Error(1)
+	return args.Get(0).(*domain.FileMetadataRecord), args.Error(1)
 }
 
-func (m *MockFileMetadataRepository) ListFileMetadata(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, error) {
+func (m *MockFileMetadataRepository) ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) ([]*domain.FileMetadataRecord, error) {
 	args := m.Called(ctx, opts)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*models.FileMetadataRecord), args.Error(1)
+	return args.Get(0).([]*domain.FileMetadataRecord), args.Error(1)
 }
 
-func (m *MockFileMetadataRepository) ListFiles(ctx context.Context, opts *models.FileMetadataListOptions) ([]*models.FileMetadataRecord, int, error) {
+func (m *MockFileMetadataRepository) ListFiles(ctx context.Context, opts *domain.FileMetadataListOptions) ([]*domain.FileMetadataRecord, int, error) {
 	args := m.Called(ctx, opts)
 	if args.Get(0) == nil {
 		return nil, 0, args.Error(1)
 	}
-	return args.Get(0).([]*models.FileMetadataRecord), args.Int(1), args.Error(2)
+	return args.Get(0).([]*domain.FileMetadataRecord), args.Int(1), args.Error(2)
 }
 
 func (m *MockFileMetadataRepository) RemoveFileMetadata(ctx context.Context, fileID string) error {
@@ -74,12 +75,12 @@ func (m *MockFileMetadataRepository) RemoveFileMetadata(ctx context.Context, fil
 	return args.Error(0)
 }
 
-func (m *MockFileMetadataRepository) GetFileMetadata(ctx context.Context, fileID string) (*models.FileMetadataRecord, error) {
+func (m *MockFileMetadataRepository) GetFileMetadata(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error) {
 	args := m.Called(ctx, fileID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.FileMetadataRecord), args.Error(1)
+	return args.Get(0).(*domain.FileMetadataRecord), args.Error(1)
 }
 
 // MockStorageProvider implements FileStorageProvider for testing
@@ -279,7 +280,7 @@ func createTestLogger() logger.Logger {
 // 				UserId:   "user_123",
 // 			},
 // 			mockBehavior: func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {
-// 				mockFileMetadata := []*models.FileMetadataRecord{
+// 				mockFileMetadata := []*domain.FileMetadataRecord{
 // 					{
 // 						ID: "file1",
 // 						Metadata: &sharedv1.FileMetadata{
@@ -308,7 +309,7 @@ func createTestLogger() logger.Logger {
 // 				UserId:   "user_123",
 // 			},
 // 			mockBehavior: func(mfmr *MockFileMetadataRepository, msp *MockStorageProvider) {
-// 				mockFileMetadata := []*models.FileMetadataRecord{
+// 				mockFileMetadata := []*domain.FileMetadataRecord{
 // 					{
 // 						ID: "file1",
 // 						Metadata: &sharedv1.FileMetadata{
@@ -434,7 +435,7 @@ func TestListFilesBasic(t *testing.T) {
 		UserId:   "user_123",
 	}
 
-	mockFileMetadata := []*models.FileMetadataRecord{
+	mockFileMetadata := []*domain.FileMetadataRecord{
 		{
 			ID: "file1",
 			Metadata: &sharedv1.FileMetadata{

@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
-	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository/sqlite"
+	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata/repository/sqlite"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
@@ -38,12 +38,12 @@ func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
 	// Test cases
 	testCases := []struct {
 		name        string
-		metadata    *models.FileMetadataRecord
+		metadata    *domain.FileMetadataRecord
 		expectError bool
 	}{
 		{
 			name: "Valid Metadata Storage",
-			metadata: &models.FileMetadataRecord{
+			metadata: &domain.FileMetadataRecord{
 				ID:               "test-file-id-1",
 				Metadata:         testMetadata,
 				StoragePath:      "/tmp/test_file.txt",
@@ -60,7 +60,7 @@ func TestSQLiteFileMetadataRepository_CreateFileMetadata(t *testing.T) {
 		},
 		{
 			name: "Empty File ID",
-			metadata: &models.FileMetadataRecord{
+			metadata: &domain.FileMetadataRecord{
 				ID:               "",
 				Metadata:         testMetadata,
 				ProcessingStatus: "PENDING",
@@ -118,7 +118,7 @@ func TestSQLiteFileMetadataRepository_Upsert(t *testing.T) {
 		UserId:           "test-user-1",
 	}
 
-	initialFileMetadata := &models.FileMetadataRecord{
+	initialFileMetadata := &domain.FileMetadataRecord{
 		ID:               "test-upsert-id",
 		Metadata:         initialMetadata,
 		StoragePath:      "/tmp/initial_file.txt",
@@ -142,7 +142,7 @@ func TestSQLiteFileMetadataRepository_Upsert(t *testing.T) {
 		UserId:           initialMetadata.UserId,
 	}
 
-	updatedFileMetadata := &models.FileMetadataRecord{
+	updatedFileMetadata := &domain.FileMetadataRecord{
 		ID:               "test-upsert-id",
 		Metadata:         &updatedMetadata,
 		StoragePath:      "/tmp/updated_file.txt",

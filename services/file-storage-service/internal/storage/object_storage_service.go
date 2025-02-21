@@ -1,12 +1,12 @@
-package service
+package storage
 
 import (
 	"context"
 	"io"
 
-	storage "github.com/yaanno/upload-store-process/services/file-storage-service/internal/filesystem"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
+	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
+	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage/providers/local"
 )
 
 type UploadFileRequest struct {
@@ -22,12 +22,12 @@ type FileUploadService interface {
 
 type FileUploadServiceImpl struct {
 	repository repository.FileMetadataRepository
-	storage    storage.FileStorageProvider
+	storage    storageProvider.LocalFileSystem
 }
 
 func NewFileUploadServiceImpl(
 	repository repository.FileMetadataRepository,
-	storage storage.FileStorageProvider,
+	storage storageProvider.LocalFileSystem,
 ) *FileUploadServiceImpl {
 	return &FileUploadServiceImpl{
 		repository: repository,
@@ -36,12 +36,14 @@ func NewFileUploadServiceImpl(
 }
 
 func (s *FileUploadServiceImpl) UploadFile(ctx context.Context, req *UploadFileRequest) error {
-	if err := s.repository.CreateFileMetadata(ctx, &models.FileMetadataRecord{}); err != nil {
+	if err := s.repository.CreateFileMetadata(ctx, &domain.FileMetadataRecord{}); err != nil {
 		return err
 	}
-	_, err := s.storage.StoreFile(ctx, req.FileId, req.StorageUploadToken, req.FileContent)
+	_, err := s.storage.Store(ctx, req.FileId, req.FileContent)
 	if err != nil {
 		return err
 	}
 	return nil
 }
+
+var _ FileUploadService = (*FileUploadServiceImpl)(nil)

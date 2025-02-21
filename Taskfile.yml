@@ -27,12 +27,7 @@ tasks:
     cmds:
       - buf lint
       - go vet ./...
-  test:
-    desc: Run all tests
-    cmds:
-      - go test ./tests/unit/...
-      - go test ./tests/integration/...
-      - go test ./tests/performance/...
+  
   services:up:
     desc: Start all services
     cmds:
@@ -55,20 +50,27 @@ tasks:
     desc: Start FileStorage service
     cmds:
       - go run ./tools/clients/file_storage_client.go
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./.../unit/...
+      - go test ./.../integration/...
+      - go test ./.../performance/...
+
   test:unit:
     desc: Run unit tests
     cmds:
-      - go test ./.../tests/unit/...
+      - go test ./.../unit/...
 
   test:integration:
     desc: Run integration tests
     cmds:
-      - go test ./.../tests/integration/...
+      - go test ./.../integration/...
 
   test:performance:
     desc: Run performance tests
     cmds:
-      - go test -benchmem -benchtime=5x -bench=. -benchmem ./.../tests/performance/...
+      - go test -benchmem -benchtime=5x -bench=. -benchmem ./.../performance/...
 
   test:coverage:
     desc: Generate test coverage report

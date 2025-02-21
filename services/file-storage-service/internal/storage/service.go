@@ -1,6 +1,7 @@
-package service
+package storage
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -21,9 +22,10 @@ import (
 
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
-	storage "github.com/yaanno/upload-store-process/services/file-storage-service/internal/filesystem"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/models"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository"
+
+	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
+	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage/providers/local"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
@@ -38,21 +40,21 @@ type FileStorageService interface {
 // FileStorageService implements the gRPC service
 type FileStorageServiceImpl struct {
 	storagev1.UnimplementedFileStorageServiceServer
-	repo            repository.FileMetadataRepository
-	logger          logger.Logger
-	storageProvider storage.FileStorageProvider
+	repo     repository.FileMetadataRepository
+	logger   logger.Logger
+	provider storageProvider.LocalFileSystem
 }
 
 // NewFileStorageService creates a new instance of FileStorageService
 func NewFileStorageService(
 	repo repository.FileMetadataRepository,
 	logger logger.Logger,
-	storageProvider storage.FileStorageProvider,
+	provider storageProvider.LocalFileSystem,
 ) *FileStorageServiceImpl {
 	return &FileStorageServiceImpl{
-		repo:            repo,
-		logger:          logger,
-		storageProvider: storageProvider,
+		repo:     repo,
+		logger:   logger,
+		provider: provider,
 	}
 }
 
@@ -76,7 +78,7 @@ func (s *FileStorageServiceImpl) PrepareUpload(
 	}
 
 	// Generate storage path using the storage provider
-	storagePath := s.storageProvider.GenerateStoragePath(fileID, req.Filename)
+	storagePath := s.provider.GenerateStoragePath(fileID, req.Filename)
 
 	// Prepare initial metadata
 	initialMetadata := &sharedv1.FileMetadata{
@@ -89,7 +91,7 @@ func (s *FileStorageServiceImpl) PrepareUpload(
 	}
 
 	// Create initial metadata record
-	metadataRecord := &models.FileMetadataRecord{
+	metadataRecord := &domain.FileMetadataRecord{
 		ID:               fileID,
 		Metadata:         initialMetadata,
 		StoragePath:      storagePath,
@@ -121,7 +123,7 @@ func (s *FileStorageServiceImpl) ListFiles(ctx context.Context, req *storagev1.L
 	pageNum := int32(req.Page)
 
 	// Prepare list options
-	listOpts := &models.FileMetadataListOptions{
+	listOpts := &domain.FileMetadataListOptions{
 		UserID: req.UserId,
 		Limit:  int(pageSize),
 		Offset: int((pageNum - 1) * pageSize),
@@ -159,78 +161,78 @@ func (s *FileStorageServiceImpl) ListFiles(ctx context.Context, req *storagev1.L
 }
 
 // UploadFile handles the actual file upload process
-// func (s *FileStorageServiceImpl) UploadFile(
-// 	ctx context.Context,
-// 	req *storagev1.UploadFileRequest,
-// ) (*storagev1.UploadFileResponse, error) {
-// 	// Validate input
-// 	if err := s.ValidateUploadFileRequest(ctx, req); err != nil {
-// 		return nil, err
-// 	}
+func (s *FileStorageServiceImpl) UploadFile(
+	ctx context.Context,
+	req *storagev1.UploadFileRequest,
+) (*storagev1.UploadFileResponse, error) {
+	// Validate input
+	if err := s.ValidateUploadFileRequest(ctx, req); err != nil {
+		return nil, err
+	}
 
-// 	// Retrieve file metadata to confirm upload context
-// 	metadata, err := s.repo.RetrieveFileMetadataByID(ctx, req.FileId)
-// 	if err != nil {
-// 		s.logger.Error().
-// 			Str("method", "UploadFile").
-// 			Err(err).
-// 			Str("fileId", req.FileId).
-// 			Msg("failed to retrieve file metadata")
-// 		return nil, status.Errorf(codes.NotFound, "file metadata not found")
-// 	}
+	// Retrieve file metadata to confirm upload context
+	metadata, err := s.repo.RetrieveFileMetadataByID(ctx, req.FileId)
+	if err != nil {
+		s.logger.Error().
+			Str("method", "UploadFile").
+			Err(err).
+			Str("fileId", req.FileId).
+			Msg("failed to retrieve file metadata")
+		return nil, status.Errorf(codes.NotFound, "file metadata not found")
+	}
 
-// 	// Validate that file is in a valid state for upload
-// 	if metadata.ProcessingStatus != "PENDING" {
-// 		s.logger.Error().
-// 			Str("method", "UploadFile").
-// 			Str("fileId", metadata.ID).
-// 			Str("processingStatus", metadata.ProcessingStatus).
-// 			Msg("invalid file upload state")
-// 		return nil, status.Errorf(codes.FailedPrecondition, "invalid file upload state")
-// 	}
+	// Validate that file is in a valid state for upload
+	if metadata.ProcessingStatus != "PENDING" {
+		s.logger.Error().
+			Str("method", "UploadFile").
+			Str("fileId", metadata.ID).
+			Str("processingStatus", metadata.ProcessingStatus).
+			Msg("invalid file upload state")
+		return nil, status.Errorf(codes.FailedPrecondition, "invalid file upload state")
+	}
 
-// 	// Store the file using the storage provider
-// 	storagePath, err := s.storageProvider.StoreFile(
-// 		ctx,
-// 		req.FileId,
-// 		metadata.Metadata.OriginalFilename,
-// 		bytes.NewReader(req.FileContent),
-// 	)
-// 	if err != nil {
-// 		// Rollback metadata status
-// 		metadata.ProcessingStatus = "PENDING"
-// 		if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
-// 			s.logger.Error().
-// 				Str("method", "UploadFile").
-// 				Err(err).
-// 				Str("fileId", metadata.ID).
-// 				Msg("failed to rollback file metadata")
-// 		}
-// 		return nil, status.Errorf(codes.Internal, "failed to store file: %v", err)
-// 	}
+	// Store the file using the storage provider
+	storagePath, err := s.provider.Store(
+		ctx,
+		req.FileId,
+		metadata.Metadata.OriginalFilename,
+		bytes.NewReader(req.FileContent),
+	)
+	if err != nil {
+		// Rollback metadata status
+		metadata.ProcessingStatus = "PENDING"
+		if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
+			s.logger.Error().
+				Str("method", "UploadFile").
+				Err(err).
+				Str("fileId", metadata.ID).
+				Msg("failed to rollback file metadata")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to store file: %v", err)
+	}
 
-// 	// Update metadata to COMPLETED status
-// 	metadata.ProcessingStatus = "COMPLETED"
-// 	metadata.StoragePath = storagePath
-// 	metadata.UpdatedAt = time.Now().UTC()
+	// Update metadata to COMPLETED status
+	metadata.ProcessingStatus = "COMPLETED"
+	metadata.StoragePath = storagePath
+	metadata.UpdatedAt = time.Now().UTC()
 
-// 	if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
-// 		s.logger.Error().
-// 			Str("method", "UploadFile").
-// 			Str("fileID", metadata.ID).
-// 			Err(err).
-// 			Msg("Failed to update file metadata after upload")
-// 		// Non-critical error, file is already stored
-// 	}
+	if err := s.repo.UpdateFileMetadata(ctx, metadata); err != nil {
+		s.logger.Error().
+			Str("method", "UploadFile").
+			Str("fileID", metadata.ID).
+			Err(err).
+			Msg("Failed to update file metadata after upload")
+		// Non-critical error, file is already stored
+	}
 
-// 	return &storagev1.UploadFileResponse{
-// 		BaseResponse: &sharedv1.Response{
-// 			Message: "File uploaded successfully",
-// 		},
-// 		StoragePath: storagePath,
-// 		FileId:      metadata.ID,
-// 	}, nil
-// }
+	return &storagev1.UploadFileResponse{
+		BaseResponse: &sharedv1.Response{
+			Message: "File uploaded successfully",
+		},
+		StoragePath: storagePath,
+		FileId:      metadata.ID,
+	}, nil
+}
 
 // DeleteFile implements v1.FileStorageServiceServer.
 func (s *FileStorageServiceImpl) DeleteFile(ctx context.Context, req *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
@@ -315,7 +317,7 @@ func (s *FileStorageServiceImpl) ValidateUploadFileRequest(ctx context.Context, 
 // ValidateDeleteRequest validates the delete request
 func (s *FileStorageServiceImpl) ValidateDeleteFileRequest(ctx context.Context, req *storagev1.DeleteFileRequest) error {
 
-	opts := &models.FileMetadataListOptions{
+	opts := &domain.FileMetadataListOptions{
 		UserID: req.UserId,
 		FileID: req.FileId,
 	}
@@ -345,7 +347,7 @@ func (s *FileStorageServiceImpl) ValidateDeleteFileRequest(ctx context.Context, 
 // ValidateGetFileMetadataRequest validates the get file metadata request
 func (s *FileStorageServiceImpl) ValidateGetFileMetadataRequest(ctx context.Context, req *storagev1.GetFileMetadataRequest) error {
 
-	opts := &models.FileMetadataListOptions{
+	opts := &domain.FileMetadataListOptions{
 		UserID: req.UserId,
 		FileID: req.FileId,
 	}

@@ -14,11 +14,11 @@ import (
 
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	interceptor "github.com/yaanno/upload-store-process/services/file-storage-service/interceptor"
-	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/api/handler"
-	router "github.com/yaanno/upload-store-process/services/file-storage-service/internal/api/router"
-	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/filesystem"
-	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository/sqlite"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
+	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata/repository/sqlite"
+	service "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
+	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage/providers/local"
+	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/handlers"
+	router "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/router"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -63,7 +63,7 @@ func main() {
 	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, storage)
 
 	// 7. Initialize gRPC Server
-	grpcLis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
+	grpcListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
 	if err != nil {
 		serviceLogger.Error().Err(err).Str("host", cfg.Server.Host).Int("port", cfg.Server.Port).Msg("Failed to create gRPC listener, service exiting")
 		os.Exit(1)
@@ -85,7 +85,7 @@ func main() {
 	}
 
 	// 9. Start Servers in Goroutines
-	go startGrpcServer(grpcServer, grpcLis, wrappedLogger, cfg.Server)
+	go startGrpcServer(grpcServer, grpcListener, wrappedLogger, cfg.Server)
 	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
 
 	// 10. Graceful Shutdown Handling
@@ -147,9 +147,9 @@ func validateConfig(cfg *config.ServiceConfig) error {
 	return nil
 }
 
-func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.Logger) (*storageProvider.LocalFilesystemStorage, error) {
+func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.Logger) (*storageProvider.LocalFileSystem, error) {
 	if storageCfg.Provider == "local" {
-		provider := storageProvider.NewLocalFilesystemStorage(storageCfg.BasePath)
+		provider := storageProvider.NewLocalFileSystem(storageCfg.BasePath)
 		serviceLogger.Info().Str("provider", storageCfg.Provider).Str("basePath", storageCfg.BasePath).Msg("Storage provider initialized")
 		return provider, nil
 	}

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	service "github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
+	service "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
