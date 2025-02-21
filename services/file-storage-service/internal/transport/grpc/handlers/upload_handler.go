@@ -1,11 +1,9 @@
 package handlers
 
 import (
-	"bytes"
-	"context"
+	"encoding/json"
+	"net/http"
 
-	uploadv1 "github.com/yaanno/upload-store-process/gen/go/fileupload/v1"
-	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 )
 
@@ -19,22 +17,19 @@ func NewUploadHandler(uploadService upload.UploadService) *UploadHandler {
 	}
 }
 
-func (h *UploadHandler) UploadFile(ctx context.Context, req *uploadv1.UploadFileRequest) (*uploadv1.UploadFileResponse, error) {
-	resp, err := h.uploadService.Upload(ctx, &upload.UploadRequest{
-		FileID:             req.FileId,
-		StorageUploadToken: req.StorageUploadToken,
-		FileContent:        bytes.NewReader(req.FileContent),
-		UserID:             req.UserId,
-	})
-	if err != nil {
-		return nil, err
+func (h *UploadHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	req := &upload.UploadRequest{
+		FileID:             r.FormValue("fileId"),
+		StorageUploadToken: r.FormValue("token"),
+		FileContent:        r.Body,
+		UserID:             r.FormValue("userId"),
 	}
 
-	return &uploadv1.UploadFileResponse{
-		FileId:      resp.FileID,
-		StoragePath: resp.StoragePath,
-		BaseResponse: &sharedv1.Response{
-			Message: resp.Message,
-		},
-	}, nil
+	resp, err := h.uploadService.Upload(r.Context(), req)
+	if err != nil {
+		// h.handleError(w, err)
+		return
+	}
+
+	json.NewEncoder(w).Encode(resp)
 }

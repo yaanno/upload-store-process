@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
+	uploadv1 "github.com/yaanno/upload-store-process/gen/go/fileupload/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	service "github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
@@ -21,6 +23,7 @@ type UploadHandler interface {
 	CreateFile(w http.ResponseWriter, r *http.Request)
 	GetFile(w http.ResponseWriter, r *http.Request)
 	DeleteFile(w http.ResponseWriter, r *http.Request)
+	Upload(w http.ResponseWriter, r *http.Request)
 }
 
 type UploadHandlerImpl struct {
@@ -32,20 +35,69 @@ func NewFileUploadHandler(logger logger.Logger, uploadService service.UploadServ
 	return &UploadHandlerImpl{logger: logger, uploadService: uploadService}
 }
 
-func (h *UploadHandlerImpl) HandleUpload(w http.ResponseWriter, r *http.Request) {
+func (h *UploadHandlerImpl) Upload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	fileSizeStr := r.Header.Get("Content-Length")
+	fileSize, err := strconv.ParseInt(fileSizeStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid file size", http.StatusBadRequest)
+		return
+	}
+
 	req := &upload.UploadRequest{
 		FileID:             r.FormValue("fileId"),
 		StorageUploadToken: r.FormValue("token"),
+		FileSizeBytes:      fileSize,
 		FileContent:        r.Body,
 		UserID:             r.FormValue("userId"),
 	}
 
 	resp, err := h.uploadService.Upload(r.Context(), req)
 	if err != nil {
-		handleError(w, err)
+		// statusCode, errorResponse := errors.MapToHTTPError(err)
+		// w.WriteHeader(statusCode)
+		// json.NewEncoder(w).Encode(errorResponse)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *UploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var prepareReq struct {
+		Filename      string `json:"filename"`
+		FileSizeBytes int64  `json:"fileSizeBytes"`
+		UserID        string `json:"userId"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&prepareReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := h.uploadService.PrepareUpload(r.Context(), &uploadv1.PrepareUploadRequest{
+		Filename:      prepareReq.Filename,
+		FileSizeBytes: prepareReq.FileSizeBytes,
+		UserId:        prepareReq.UserID,
+	})
+	if err != nil {
+		// statusCode, errorResponse := errors.MapToHTTPError(err)
+		// w.WriteHeader(statusCode)
+		// json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
@@ -114,10 +166,7 @@ func (h *UploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Lightweight service call
-	// update the metadata in the repository
-	// return with metadata
-	response, err := h.uploadService.Upload(ctx, &service.UploadRequest{
+	resp, err := h.uploadService.Upload(ctx, &service.UploadRequest{
 		FileID:             fileId,
 		StorageUploadToken: storageUploadToken,
 		// FileSizeBytes:      fileSizeStr,
@@ -131,11 +180,7 @@ func (h *UploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"storage_path": response.StoragePath,
-		"file_id":      response.FileID,
-		"message":      response.Message,
-	})
+	json.NewEncoder(w).Encode(&resp)
 	w.WriteHeader(http.StatusCreated)
 }
 
