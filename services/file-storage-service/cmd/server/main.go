@@ -12,13 +12,12 @@ import (
 
 	"google.golang.org/grpc"
 
-	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
-	interceptor "github.com/yaanno/upload-store-process/services/file-storage-service/interceptor"
-	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/api/handler"
-	router "github.com/yaanno/upload-store-process/services/file-storage-service/internal/api/router"
-	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/filesystem"
-	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/repository/sqlite"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
+	database "github.com/yaanno/upload-store-process/services/file-storage-service/internal/database/sqlite"
+	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
+	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
+	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/handlers"
+	router "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/router"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -39,16 +38,16 @@ func main() {
 	serviceLogger := log.WithService(serviceName)
 	wrappedLogger := logger.Logger{Logger: serviceLogger}
 
+	ctx := context.Background()
+
 	// 3. Initialize Database
-	testDatabase, err := repository.InitializeTestDatabase()
+	db, err := database.InitializeTestDatabase(ctx)
 	if err != nil {
 		serviceLogger.Error().
 			Err(err).
 			Msg("Failed to initialize test database")
 		os.Exit(1)
 	}
-
-	db := testDatabase.GetDB()
 
 	// 4. Initialize Storage Provider
 	storage, err := initializeStorageProvider(cfg.Storage, wrappedLogger)
@@ -58,24 +57,28 @@ func main() {
 	}
 
 	// 5. Initialize Repositories, Services, and Middleware
-	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
-	fileUploadService := service.NewFileUploadServiceImpl(fileMetadataRepository, storage)
-	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, storage)
-
-	// 7. Initialize gRPC Server
-	grpcLis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
+	metadataRepository, err := repository.NewRepository("sqlite", db, wrappedLogger)
 	if err != nil {
-		serviceLogger.Error().Err(err).Str("host", cfg.Server.Host).Int("port", cfg.Server.Port).Msg("Failed to create gRPC listener, service exiting")
+		serviceLogger.Error().Err(err).Msg("Failed to initialize metadata repository, service exiting")
 		os.Exit(1)
 	}
-	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(interceptor.ValidationInterceptor()),
-	)
-	storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServiceServer)
+	uploadService := upload.NewUploadService(metadataRepository, storage, wrappedLogger)
+	// storageServiceServer := service.NewStorageService(wrappedLogger, storage)
+
+	// 7. Initialize gRPC Server
+	// grpcListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
+	// if err != nil {
+	// 	serviceLogger.Error().Err(err).Str("host", cfg.Server.Host).Int("port", cfg.Server.Port).Msg("Failed to create gRPC listener, service exiting")
+	// 	os.Exit(1)
+	// }
+	// grpcServer := grpc.NewServer(
+	// 	grpc.UnaryInterceptor(interceptor.ValidationInterceptor()),
+	// )
+	// storagev1.RegisterFileStorageServiceServer(grpcServer, storageServiceServer)
 
 	// 8. Initialize HTTP Server
 
-	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, fileUploadService)
+	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, uploadService)
 	healthHandler := handler.NewHealthHandler(&serviceLogger)
 	router := router.SetupRouter(uploadHandler, healthHandler)
 
@@ -85,11 +88,11 @@ func main() {
 	}
 
 	// 9. Start Servers in Goroutines
-	go startGrpcServer(grpcServer, grpcLis, wrappedLogger, cfg.Server)
+	// go startGrpcServer(grpcServer, grpcListener, wrappedLogger, cfg.Server)
 	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
 
 	// 10. Graceful Shutdown Handling
-	waitForShutdown(grpcServer, httpServer, wrappedLogger)
+	waitForShutdown(nil, httpServer, wrappedLogger)
 }
 
 func loadConfiguration() (*config.ServiceConfig, error) {
@@ -147,14 +150,19 @@ func validateConfig(cfg *config.ServiceConfig) error {
 	return nil
 }
 
-func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.Logger) (*storageProvider.LocalFilesystemStorage, error) {
-	if storageCfg.Provider == "local" {
-		provider := storageProvider.NewLocalFilesystemStorage(storageCfg.BasePath)
-		serviceLogger.Info().Str("provider", storageCfg.Provider).Str("basePath", storageCfg.BasePath).Msg("Storage provider initialized")
-		return provider, nil
+func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.Logger) (storageProvider.Provider, error) {
+	// if storageCfg.Provider == "local" {
+	providerConfig := &storageProvider.Config{
+		BasePath: storageCfg.BasePath,
 	}
-	// Add other storage providers here (e.g., S3, GCS) in the future.
-	return nil, fmt.Errorf("unsupported storage provider: %s", storageCfg.Provider)
+	provider, err := storageProvider.NewProvider("local", providerConfig, serviceLogger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize local storage provider: %w", err)
+	}
+	serviceLogger.Info().Str("provider", storageCfg.Provider).Str("basePath", storageCfg.BasePath).Msg("Storage provider initialized")
+	return provider, nil
+	// }
+
 }
 
 func startGrpcServer(grpcServer *grpc.Server, lis net.Listener, serviceLogger logger.Logger, serverCfg config.ServerConfig) {
@@ -187,7 +195,7 @@ func waitForShutdown(grpcServer *grpc.Server, httpServer *http.Server, serviceLo
 	<-quit
 
 	serviceLogger.Info().Msg("Shutting down servers...")
-	grpcServer.GracefulStop()
+	// grpcServer.GracefulStop()
 	httpServer.Shutdown(context.Background())
 	serviceLogger.Info().Msg("Server shutdown complete")
 }
