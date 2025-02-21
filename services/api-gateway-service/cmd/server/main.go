@@ -11,8 +11,8 @@ import (
 	"time"
 
 	uploadv1 "github.com/yaanno/upload-store-process/gen/go/fileupload/v1"
-	"github.com/yaanno/upload-store-process/services/file-upload-service/internal/handler"
-	"github.com/yaanno/upload-store-process/services/file-upload-service/internal/middleware"
+	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/handler"
+	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/middleware"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
