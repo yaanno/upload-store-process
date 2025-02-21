@@ -2,7 +2,11 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
+
+	filesystem "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage/providers/local"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
 // Provider defines the interface for file storage operations
@@ -21,4 +25,27 @@ type Provider interface {
 
 	// GenerateStoragePath generates a storage path for a file
 	GenerateStoragePath(fileID string) string
+}
+
+type ProviderType string
+
+type LocalStorageConfig struct {
+	BasePath string `mapstructure:"base_path"`
+}
+
+const (
+	Local ProviderType = "local"
+)
+
+func NewProvider(providerType ProviderType, cfg interface{}, logger logger.Logger) (Provider, error) {
+	switch providerType {
+	case Local:
+		localCfg, ok := cfg.(*LocalStorageConfig)
+		if !ok {
+			return nil, errors.New("invalid configuration type")
+		}
+		return filesystem.NewLocalFileSystem(localCfg.BasePath), nil
+	default:
+		return nil, errors.New("invalid provider type")
+	}
 }

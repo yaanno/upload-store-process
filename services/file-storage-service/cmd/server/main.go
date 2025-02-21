@@ -12,8 +12,9 @@ import (
 
 	"google.golang.org/grpc"
 
+	database "github.com/yaanno/upload-store-process/services/file-storage-service/internal/database/sqlite"
 	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
-	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage/providers/local"
+	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
 	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/handlers"
 	router "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/router"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
@@ -37,16 +38,16 @@ func main() {
 	serviceLogger := log.WithService(serviceName)
 	wrappedLogger := logger.Logger{Logger: serviceLogger}
 
+	ctx := context.Background()
+
 	// 3. Initialize Database
-	testDatabase, err := repository.InitializeTestDatabase()
+	db, err := database.InitializeTestDatabase(ctx)
 	if err != nil {
 		serviceLogger.Error().
 			Err(err).
 			Msg("Failed to initialize test database")
 		os.Exit(1)
 	}
-
-	db := testDatabase.GetDB()
 
 	// 4. Initialize Storage Provider
 	storage, err := initializeStorageProvider(cfg.Storage, wrappedLogger)
@@ -56,7 +57,11 @@ func main() {
 	}
 
 	// 5. Initialize Repositories, Services, and Middleware
-	metadataRepository, err := repository.NewRepository("sqlite", cfg)
+	metadataRepository, err := repository.NewRepository("sqlite", db, wrappedLogger)
+	if err != nil {
+		serviceLogger.Error().Err(err).Msg("Failed to initialize metadata repository, service exiting")
+		os.Exit(1)
+	}
 	uploadService := upload.NewUploadService(metadataRepository, storage, wrappedLogger)
 	// storageServiceServer := service.NewStorageService(wrappedLogger, storage)
 
@@ -145,14 +150,16 @@ func validateConfig(cfg *config.ServiceConfig) error {
 	return nil
 }
 
-func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.Logger) (*storageProvider.LocalFileSystem, error) {
-	if storageCfg.Provider == "local" {
-		provider := storageProvider.NewLocalFileSystem(storageCfg.BasePath)
-		serviceLogger.Info().Str("provider", storageCfg.Provider).Str("basePath", storageCfg.BasePath).Msg("Storage provider initialized")
-		return provider, nil
+func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.Logger) (storageProvider.Provider, error) {
+	// if storageCfg.Provider == "local" {
+	provider, err := storageProvider.NewProvider("local", storageCfg.BasePath, serviceLogger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize local storage provider: %w", err)
 	}
-	// Add other storage providers here (e.g., S3, GCS) in the future.
-	return nil, fmt.Errorf("unsupported storage provider: %s", storageCfg.Provider)
+	serviceLogger.Info().Str("provider", storageCfg.Provider).Str("basePath", storageCfg.BasePath).Msg("Storage provider initialized")
+	return provider, nil
+	// }
+
 }
 
 func startGrpcServer(grpcServer *grpc.Server, lis net.Listener, serviceLogger logger.Logger, serverCfg config.ServerConfig) {

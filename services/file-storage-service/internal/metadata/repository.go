@@ -2,10 +2,12 @@ package metadata
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
 	sqliteRepositoy "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata/implementations/sqlite"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
 // FileMetadataRepository defines the interface for file metadata storage operations
@@ -26,10 +28,14 @@ const (
 	SQLite RepositoryType = "sqlite"
 )
 
-func NewRepository(repoType RepositoryType, cfg interface{}) (FileMetadataRepository, error) {
+func NewRepository(repoType RepositoryType, db interface{}, logger logger.Logger) (FileMetadataRepository, error) {
 	switch repoType {
 	case SQLite:
-		return sqliteRepositoy.NewSQLiteFileMetadataRepository(), nil
+		sqlDb, ok := db.(*sql.DB)
+		if !ok {
+			return nil, errors.New("invalid database type")
+		}
+		return sqliteRepositoy.NewSQLiteFileMetadataRepository(sqlDb, logger), nil
 	default:
 		return nil, errors.New("invalid repository type")
 	}

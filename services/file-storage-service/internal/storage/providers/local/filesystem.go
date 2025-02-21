@@ -72,6 +72,6 @@ func (fs *LocalFileSystem) GetBasePath() string {
 	return fs.basePath
 }
 
-func (fs *LocalFileSystem) GenerateStoragePath(fileID, fileName string) string {
+func (fs *LocalFileSystem) GenerateStoragePath(fileID string) string {
 	return ""
 }
