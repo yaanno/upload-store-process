@@ -152,7 +152,10 @@ func validateConfig(cfg *config.ServiceConfig) error {
 
 func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.Logger) (storageProvider.Provider, error) {
 	// if storageCfg.Provider == "local" {
-	provider, err := storageProvider.NewProvider("local", storageCfg.BasePath, serviceLogger)
+	providerConfig := &storageProvider.Config{
+		BasePath: storageCfg.BasePath,
+	}
+	provider, err := storageProvider.NewProvider("local", providerConfig, serviceLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize local storage provider: %w", err)
 	}
@@ -192,7 +195,7 @@ func waitForShutdown(grpcServer *grpc.Server, httpServer *http.Server, serviceLo
 	<-quit
 
 	serviceLogger.Info().Msg("Shutting down servers...")
-	grpcServer.GracefulStop()
+	// grpcServer.GracefulStop()
 	httpServer.Shutdown(context.Background())
 	serviceLogger.Info().Msg("Server shutdown complete")
 }

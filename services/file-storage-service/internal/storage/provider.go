@@ -29,7 +29,7 @@ type Provider interface {
 
 type ProviderType string
 
-type LocalStorageConfig struct {
+type Config struct {
 	BasePath string `mapstructure:"base_path"`
 }
 
@@ -40,7 +40,7 @@ const (
 func NewProvider(providerType ProviderType, cfg interface{}, logger logger.Logger) (Provider, error) {
 	switch providerType {
 	case Local:
-		localCfg, ok := cfg.(*LocalStorageConfig)
+		localCfg, ok := cfg.(*Config)
 		if !ok {
 			return nil, errors.New("invalid configuration type")
 		}
