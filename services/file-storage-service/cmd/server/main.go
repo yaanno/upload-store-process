@@ -59,9 +59,9 @@ func main() {
 	}
 
 	// 5. Initialize Repositories, Services, and Middleware
-	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
-	fileUploadService := upload.NewFileUploadService(fileMetadataRepository, storage)
-	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, storage)
+	metadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
+	uploadService := upload.NewUploadService(metadataRepository, storage, wrappedLogger)
+	storageServiceServer := service.NewStorageService(wrappedLogger, storage)
 
 	// 7. Initialize gRPC Server
 	grpcListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
@@ -72,11 +72,11 @@ func main() {
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(interceptor.ValidationInterceptor()),
 	)
-	storagev1.RegisterFileStorageServiceServer(grpcServer, fileStorageServiceServer)
+	storagev1.RegisterFileStorageServiceServer(grpcServer, storageServiceServer)
 
 	// 8. Initialize HTTP Server
 
-	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, fileUploadService)
+	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, uploadService)
 	healthHandler := handler.NewHealthHandler(&serviceLogger)
 	router := router.SetupRouter(uploadHandler, healthHandler)
 

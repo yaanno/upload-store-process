@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	service "github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -16,22 +17,47 @@ const (
 	maxFileSize = 10 * 1024 * 1024 // 10MB
 )
 
-type FileUploadHandler interface {
+type UploadHandler interface {
 	CreateFile(w http.ResponseWriter, r *http.Request)
 	GetFile(w http.ResponseWriter, r *http.Request)
 	DeleteFile(w http.ResponseWriter, r *http.Request)
 }
 
-type FileUploadHandlerImpl struct {
-	logger  logger.Logger
-	service service.FileUploadService
+type UploadHandlerImpl struct {
+	logger        logger.Logger
+	uploadService service.UploadService
 }
 
-func NewFileUploadHandler(logger logger.Logger, service service.FileUploadService) *FileUploadHandlerImpl {
-	return &FileUploadHandlerImpl{logger: logger, service: service}
+func NewFileUploadHandler(logger logger.Logger, uploadService service.UploadService) *UploadHandlerImpl {
+	return &UploadHandlerImpl{logger: logger, uploadService: uploadService}
 }
 
-func (h *FileUploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Request) {
+func (h *UploadHandlerImpl) HandleUpload(w http.ResponseWriter, r *http.Request) {
+	req := &upload.UploadRequest{
+		FileID:             r.FormValue("fileId"),
+		StorageUploadToken: r.FormValue("token"),
+		FileContent:        r.Body,
+		UserID:             r.FormValue("userId"),
+	}
+
+	resp, err := h.uploadService.Upload(r.Context(), req)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	json.NewEncoder(w).Encode(resp)
+}
+
+func handleError(w http.ResponseWriter, err error) {
+	panic("unimplemented")
+}
+
+func parseFileSize(s string) {
+	panic("unimplemented")
+}
+
+func (h *UploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
@@ -91,11 +117,11 @@ func (h *FileUploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Reques
 	// Lightweight service call
 	// update the metadata in the repository
 	// return with metadata
-	err = h.service.UploadFile(ctx, &service.UploadFileRequest{
-		FileId:             fileId,
+	response, err := h.uploadService.Upload(ctx, &service.UploadRequest{
+		FileID:             fileId,
 		StorageUploadToken: storageUploadToken,
-		FileSizeBytes:      fileSizeStr,
-		FileContent:        fileContentBuffer,
+		// FileSizeBytes:      fileSizeStr,
+		FileContent: fileContentBuffer,
 	})
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to upload file")
@@ -103,32 +129,20 @@ func (h *FileUploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// TODO: decide if the service should handle this or keep it lightweight
-	// UploadService should handle this
-	// it just might return the error and the metadata after initially creating one
-
-	// Store file
-	// storagePath, err := h.store.StoreFile(ctx, fileId, "", fileContentBuffer)
-	// if err != nil {
-	// 	h.logger.Error().Err(err).Msg("Failed to store file")
-	// 	http.Error(w, "Failed to store file", http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// TODO: Save metadata
-
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"storage_path": "",
+		"storage_path": response.StoragePath,
+		"file_id":      response.FileID,
+		"message":      response.Message,
 	})
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *FileUploadHandlerImpl) GetFile(w http.ResponseWriter, r *http.Request) {
+func (h *UploadHandlerImpl) GetFile(w http.ResponseWriter, r *http.Request) {
 }
 
-func (h *FileUploadHandlerImpl) DeleteFile(w http.ResponseWriter, r *http.Request) {
+func (h *UploadHandlerImpl) DeleteFile(w http.ResponseWriter, r *http.Request) {
 }
 
-var _ FileUploadHandler = (*FileUploadHandlerImpl)(nil)
+var _ UploadHandler = (*UploadHandlerImpl)(nil)

@@ -9,7 +9,7 @@ import (
 	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/handlers"
 )
 
-func SetupRouter(uploadHandler handler.FileUploadHandler, healthCheckHandler handler.HealthHandler) chi.Router {
+func SetupRouter(uploadHandler handler.UploadHandler, healthCheckHandler handler.HealthHandler) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(httprate.LimitByIP(100, 1*time.Minute))
