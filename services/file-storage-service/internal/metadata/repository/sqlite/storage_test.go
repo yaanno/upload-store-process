@@ -12,6 +12,7 @@ import (
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
 
 	// "github.com/yaanno/upload-store-process/services/file-storage-service/internal/service"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
@@ -388,7 +389,7 @@ func TestPrepareUploadBasic(t *testing.T) {
 	mockStorageProvider := new(MockStorageProvider)
 	mockLogger := createTestLogger()
 
-	service := service.NewFileStorageService(
+	service := storage.NewFileStorageService(
 		mockRepo,
 		mockLogger,
 		mockStorageProvider,
@@ -422,7 +423,7 @@ func TestListFilesBasic(t *testing.T) {
 	mockStorageProvider := new(MockStorageProvider)
 	mockLogger := createTestLogger()
 
-	service := service.NewFileStorageService(
+	service := storage.NewFileStorageService(
 		mockRepo,
 		mockLogger,
 		mockStorageProvider,

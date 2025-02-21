@@ -42,14 +42,14 @@ type FileStorageServiceImpl struct {
 	storagev1.UnimplementedFileStorageServiceServer
 	repo     repository.FileMetadataRepository
 	logger   logger.Logger
-	provider storageProvider.LocalFileSystem
+	provider *storageProvider.LocalFileSystem
 }
 
 // NewFileStorageService creates a new instance of FileStorageService
 func NewFileStorageService(
 	repo repository.FileMetadataRepository,
 	logger logger.Logger,
-	provider storageProvider.LocalFileSystem,
+	provider *storageProvider.LocalFileSystem,
 ) *FileStorageServiceImpl {
 	return &FileStorageServiceImpl{
 		repo:     repo,
@@ -195,7 +195,6 @@ func (s *FileStorageServiceImpl) UploadFile(
 	storagePath, err := s.provider.Store(
 		ctx,
 		req.FileId,
-		metadata.Metadata.OriginalFilename,
 		bytes.NewReader(req.FileContent),
 	)
 	if err != nil {

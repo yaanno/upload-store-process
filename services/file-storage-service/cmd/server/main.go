@@ -19,6 +19,7 @@ import (
 	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage/providers/local"
 	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/handlers"
 	router "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/router"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -59,7 +60,7 @@ func main() {
 
 	// 5. Initialize Repositories, Services, and Middleware
 	fileMetadataRepository := repository.NewSQLiteFileMetadataRepository(db, wrappedLogger)
-	fileUploadService := service.NewFileUploadServiceImpl(fileMetadataRepository, storage)
+	fileUploadService := upload.NewFileUploadService(fileMetadataRepository, storage)
 	fileStorageServiceServer := service.NewFileStorageService(fileMetadataRepository, wrappedLogger, storage)
 
 	// 7. Initialize gRPC Server
