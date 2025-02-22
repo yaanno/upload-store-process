@@ -99,7 +99,7 @@ func main() {
 	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
 
 	// 10. Graceful Shutdown Handling
-	waitForShutdown(nil, httpServer, wrappedLogger)
+	waitForShutdown(grpcServer, httpServer, wrappedLogger)
 }
 
 func loadConfiguration() (*config.ServiceConfig, error) {
@@ -202,7 +202,8 @@ func waitForShutdown(grpcServer *grpc.Server, httpServer *http.Server, serviceLo
 	<-quit
 
 	serviceLogger.Info().Msg("Shutting down servers...")
-	// grpcServer.GracefulStop()
+	grpcServer.GracefulStop()
+	serviceLogger.Info().Msg("gRPC server shutdown complete")
 	httpServer.Shutdown(context.Background())
 	serviceLogger.Info().Msg("Server shutdown complete")
 }
