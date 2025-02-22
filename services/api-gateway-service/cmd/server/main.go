@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	uploadv1 "github.com/yaanno/upload-store-process/gen/go/fileupload/v1"
+	gatewayv1 "github.com/yaanno/upload-store-process/gen/go/gateway/v1"
 	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/handler"
 	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/middleware"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
@@ -48,14 +48,14 @@ func main() {
 	defer grpcClientConn.Close()
 
 	tokenGenerator := auth.NewTokenGenerator(cfg.JWT.Secret, cfg.JWT.Issuer)
-	service := uploadv1.NewFileUploadServiceClient(grpcClientConn)
+	service := gatewayv1.NewAPIGatewayServiceClient(grpcClientConn)
 	jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(wrappedLogger, cfg.Upload.MaxFileSize, tokenGenerator)
 	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, cfg.Upload.MaxFileSize, service)
 
 	// 8. Initialize HTTP Server
 	httpMux := http.NewServeMux()
 	// httpMux.HandleFunc("/v1/files/upload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.HandleFileUpload))
-	httpMux.HandleFunc("/v1/files/prepareupload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.PrepareUpload))
+	httpMux.HandleFunc("/v1/files/prepare-upload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.PrepareUpload))
 	httpMux.HandleFunc("/v1/files/getmetadata", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.GetFileMetadata))
 	httpMux.HandleFunc("/healthz", healthCheckHandler) // Health check endpoint
 
