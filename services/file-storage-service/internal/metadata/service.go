@@ -2,12 +2,28 @@ package metadata
 
 import (
 	"context"
+	"time"
 
+	"github.com/google/uuid"
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+type PrepareUploadParams struct {
+	FileName string
+	FileSize int64
+	UserID   string
+}
+
+type PrepareUploadResult struct {
+	FileID      string
+	StoragePath string
+	UploadToken string
+	ExpiresAt   time.Time
+	Message     string
+}
 
 // MetadataService defines the interface for file metadata operations
 type MetadataService interface {
@@ -15,6 +31,7 @@ type MetadataService interface {
 	GetFileMetadata(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error)
 	DeleteFileMetadata(ctx context.Context, fileID string) error
 	ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) (records []*domain.FileMetadataRecord, err error)
+	PrepareUpload(ctx context.Context, params *PrepareUploadParams) (*PrepareUploadResult, error)
 }
 
 type MetadataServiceImpl struct {
@@ -134,6 +151,35 @@ func (s *MetadataServiceImpl) ListFileMetadata(ctx context.Context, opts *domain
 	}
 	// return records
 	return records, nil
+}
+
+func (s *MetadataServiceImpl) PrepareUpload(ctx context.Context, params *PrepareUploadParams) (*PrepareUploadResult, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	metadata := &domain.FileMetadataRecord{
+		ID: uuid.New().String(),
+		// FileName:  params.FileName,
+		// FileSize:  params.FileSize,
+		// UserID:    params.UserID,
+		// Status:    domain.,
+		CreatedAt: time.Now(),
+	}
+
+	if err := s.metadataRepo.CreateFileMetadata(ctx, metadata); err != nil {
+		s.logger.Error().
+			Str("method", "PrepareUpload").
+			Err(err).
+			Msg("failed to create file metadata")
+		return nil, err
+	}
+
+	return &PrepareUploadResult{
+		FileID:      metadata.ID,
+		StoragePath: metadata.StoragePath,
+		// UploadToken: generateUploadToken(metadata.ID),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}, nil
 }
 
 var _ MetadataService = (*MetadataServiceImpl)(nil)

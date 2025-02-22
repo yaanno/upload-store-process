@@ -15,31 +15,10 @@ var (
 	ErrInvalidPageSize  = errors.New("page size must be greater than 0")
 )
 
-func (o *FileMetadataListOptions) Default() {
-	if o.Limit == 0 {
-		o.Limit = 10
-	}
-	if o.Offset == 0 {
-		o.Offset = 1
-	}
-}
-
 // Validate checks the integrity of the FileMetadataListOptions
 func (o *FileMetadataListOptions) Validate() error {
 	if err := o.ValidateEssential(); err != nil {
 		return err
-	}
-	if o.SortBy == "" {
-		return ErrEmptySortBy
-	}
-	if o.SortOrder != "asc" && o.SortOrder != "desc" {
-		return ErrInvalidSortOrder
-	}
-	if o.Limit < 1 || o.Limit > 100 {
-		return ErrInvalidPageSize
-	}
-	if o.Offset < 1 {
-		return ErrInvalidPage
 	}
 	return nil
 }

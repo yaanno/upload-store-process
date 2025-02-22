@@ -72,14 +72,12 @@ func main() {
 	fileOperationHandler := grpcHandler.NewFileOperationdHandler(metadataService, &wrappedLogger)
 
 	// 7. Initialize gRPC Server
-	grpcListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
+	grpcServer, grpcListener, err := initializeGRPCServer(cfg, wrappedLogger)
 	if err != nil {
-		serviceLogger.Error().Err(err).Str("host", cfg.Server.Host).Int("port", cfg.Server.Port).Msg("Failed to create gRPC listener, service exiting")
+		serviceLogger.Error().Err(err).Msg("Failed to initialize gRPC server")
 		os.Exit(1)
 	}
-	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(interceptor.ValidationInterceptor()),
-	)
+
 	storagev1.RegisterFileStorageServiceServer(grpcServer, fileOperationHandler)
 
 	// 8. Initialize HTTP Server
@@ -170,6 +168,26 @@ func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.L
 	return provider, nil
 	// }
 
+}
+
+func initializeGRPCServer(cfg *config.ServiceConfig, logger logger.Logger) (*grpc.Server, net.Listener, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create gRPC listener: %w", err)
+	}
+
+	// Add more interceptors as needed
+	opts := []grpc.ServerOption{
+		grpc.UnaryInterceptor(interceptor.ValidationInterceptor()),
+		grpc.ChainUnaryInterceptor(
+			interceptor.LoggingInterceptor(logger),
+			interceptor.RecoveryInterceptor(),
+		),
+	}
+
+	server := grpc.NewServer(opts...)
+
+	return server, listener, nil
 }
 
 func startGrpcServer(grpcServer *grpc.Server, lis net.Listener, serviceLogger logger.Logger, serverCfg config.ServerConfig) {

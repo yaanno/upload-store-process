@@ -18,32 +18,20 @@ type FileMetadataRecord struct {
 
 // FileMetadataListOptions provides filtering and pagination for file metadata listing
 type FileMetadataListOptions struct {
-	UserID    string
-	FileID    string
-	Limit     int
-	Offset    int
-	SortBy    string
-	SortOrder string
+	UserID string
+	FileID string
 }
 
 // NewFileMetadataListOptions creates a new FileMetadataListOptions instance
 func NewFileMetadataListOptions(userID string) *FileMetadataListOptions {
 	return &FileMetadataListOptions{
-		UserID:    userID,
-		Limit:     10,
-		Offset:    1,
-		SortBy:    "created_at",
-		SortOrder: "desc",
+		UserID: userID,
 	}
 }
 
 // NewFileMetadataListOptionsWithPagination creates a new FileMetadataListOptions instance
 func NewFileMetadataListOptionsWithPagination(userID string, limit int, offset int, sortBy string, sortOrder string) *FileMetadataListOptions {
 	return &FileMetadataListOptions{
-		UserID:    userID,
-		Limit:     limit,
-		Offset:    offset,
-		SortBy:    sortBy,
-		SortOrder: sortOrder,
+		UserID: userID,
 	}
 }

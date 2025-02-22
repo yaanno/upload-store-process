@@ -7,35 +7,33 @@ import (
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
-	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type FileOperationdHandler interface {
+type FileStorageHandler interface {
 	ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error)
 	DeleteFile(ctx context.Context, req *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error)
 	GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error)
 }
 
-type FileOperationdHandlerImpl struct {
+type FileStorageHandlerImpl struct {
 	storagev1.UnimplementedFileStorageServiceServer
 	metadataService metadata.MetadataService
-	uploadService   upload.UploadService
 	logger          *logger.Logger
 }
 
-func NewFileOperationdHandler(metadataService metadata.MetadataService, logger *logger.Logger) *FileOperationdHandlerImpl {
-	return &FileOperationdHandlerImpl{
+func NewFileOperationdHandler(metadataService metadata.MetadataService, logger *logger.Logger) *FileStorageHandlerImpl {
+	return &FileStorageHandlerImpl{
 		metadataService: metadataService,
 		logger:          logger,
 	}
 }
 
 // ListFiles retrieves a list of files for a user
-func (h *FileOperationdHandlerImpl) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
+func (h *FileStorageHandlerImpl) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
 
 	// Prepare list options
 	listOpts := domain.FileMetadataListOptions{
@@ -70,7 +68,7 @@ func (h *FileOperationdHandlerImpl) ListFiles(ctx context.Context, req *storagev
 }
 
 // DeleteFile implements v1.FileStorageServiceServer.
-func (h *FileOperationdHandlerImpl) DeleteFile(ctx context.Context, req *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
+func (h *FileStorageHandlerImpl) DeleteFile(ctx context.Context, req *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
 
 	//  delete file from database
 	if err := h.metadataService.DeleteFileMetadata(ctx, req.FileId); err != nil {
@@ -93,7 +91,7 @@ func (h *FileOperationdHandlerImpl) DeleteFile(ctx context.Context, req *storage
 }
 
 // // GetFileMetadata implements v1.FileStorageServiceServer.
-func (h *FileOperationdHandlerImpl) GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
+func (h *FileStorageHandlerImpl) GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
 
 	// Retrieve file metadata
 	metadata, err := h.metadataService.GetFileMetadata(ctx, req.FileId)
@@ -126,15 +124,16 @@ func (h *FileOperationdHandlerImpl) GetFileMetadata(ctx context.Context, req *st
 	}, nil
 }
 
-func (h *FileOperationdHandlerImpl) PrepareUpload(ctx context.Context, req *storagev1.PrepareUploadRequest) (*storagev1.PrepareUploadResponse, error) {
+func (h *FileStorageHandlerImpl) PrepareUpload(ctx context.Context, req *storagev1.PrepareUploadRequest) (*storagev1.PrepareUploadResponse, error) {
+	h.logger.Info().Str("filename", req.Filename).Msg("Preparing upload")
 
-	serviceReq := &upload.PrepareUploadRequest{
-		Filename:      req.Filename,
-		FileSizeBytes: req.FileSizeBytes,
-		UserID:        req.UserId,
+	uploadParams := &metadata.PrepareUploadParams{
+		FileName: req.Filename,
+		FileSize: req.FileSizeBytes,
+		UserID:   req.UserId,
 	}
 
-	result, err := h.uploadService.PrepareUpload(ctx, serviceReq)
+	result, err := h.metadataService.PrepareUpload(ctx, uploadParams)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to prepare upload")
 		return nil, status.Errorf(codes.Internal, "failed to prepare upload: %v", err)
@@ -144,10 +143,11 @@ func (h *FileOperationdHandlerImpl) PrepareUpload(ctx context.Context, req *stor
 		StorageUploadToken: result.UploadToken,
 		StoragePath:        result.StoragePath,
 		FileId:             result.FileID,
+		ExpirationTime:     result.ExpiresAt.Unix(),
 		BaseResponse: &sharedv1.Response{
 			Message: result.Message,
 		},
 	}, nil
 }
 
-var _ FileOperationdHandler = (*FileOperationdHandlerImpl)(nil)
+var _ FileStorageHandler = (*FileStorageHandlerImpl)(nil)

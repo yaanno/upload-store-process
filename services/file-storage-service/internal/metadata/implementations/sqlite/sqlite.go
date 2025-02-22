@@ -315,14 +315,6 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 		return nil, fmt.Errorf("invalid list options: %w", err)
 	}
 
-	// Normalize pagination
-	if opts.Limit < 1 || opts.Limit > 100 {
-		opts.Limit = 10
-	}
-
-	// Calculate offset
-	offset := (opts.Offset - 1) * opts.Limit
-
 	// Count total files
 	countQuery := `SELECT COUNT(*) FROM file_metadata WHERE user_id = ?`
 	var totalFiles int
@@ -347,10 +339,9 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 			updated_at
 		FROM file_metadata
 		WHERE user_id = ?
-		LIMIT ? OFFSET ?
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, opts.UserID, opts.Limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, opts.UserID)
 	if err != nil {
 		r.logger.Error().
 			Err(err).
@@ -416,14 +407,6 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *doma
 		return nil, 0, fmt.Errorf("invalid list options: %w", err)
 	}
 
-	// Normalize pagination
-	if opts.Limit < 1 || opts.Limit > 100 {
-		opts.Limit = 10
-	}
-
-	// Calculate offset
-	offset := (opts.Offset - 1) * opts.Limit
-
 	// Count total files
 	countQuery := `SELECT COUNT(*) FROM file_metadata WHERE user_id = ?`
 	var totalFiles int
@@ -448,10 +431,9 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *doma
 			updated_at
 		FROM file_metadata
 		WHERE user_id = ?
-		LIMIT ? OFFSET ?
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, opts.UserID, opts.Limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, opts.UserID)
 	if err != nil {
 		r.logger.Error().
 			Err(err).
