@@ -67,9 +67,10 @@ func main() {
 	}
 	uploadService := upload.NewUploadService(metadataRepository, storage, wrappedLogger)
 	metadataService := repository.NewMetadataService(metadataRepository, &wrappedLogger)
-	storageServiceServer := service.NewStorageService(wrappedLogger, storage)
+
 	// TODO: this should be the storageServiceServer because the handlers implement the same interface
 	fileOperationHandler := grpcHandler.NewFileOperationdHandler(metadataService, &wrappedLogger)
+
 	// 7. Initialize gRPC Server
 	grpcListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
 	if err != nil {

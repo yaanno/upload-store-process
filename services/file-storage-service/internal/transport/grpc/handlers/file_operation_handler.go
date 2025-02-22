@@ -8,6 +8,7 @@ import (
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,13 +16,15 @@ import (
 )
 
 type FileOperationdHandler interface {
-	ListFilesMetadata(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error)
+	ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error)
 	DeleteFile(ctx context.Context, req *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error)
 	GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error)
 }
 
 type FileOperationdHandlerImpl struct {
+	storagev1.UnimplementedFileStorageServiceServer
 	metadataService metadata.MetadataService
+	uploadService   upload.UploadService
 	logger          *logger.Logger
 }
 
@@ -33,7 +36,7 @@ func NewFileOperationdHandler(metadataService metadata.MetadataService, logger *
 }
 
 // ListFiles retrieves a list of files for a user
-func (h *FileOperationdHandlerImpl) ListFilesMetadata(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
+func (h *FileOperationdHandlerImpl) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
 	// Calculate pagination
 	pageSize := int32(req.PageSize)
 	pageNum := int32(req.Page)
@@ -132,6 +135,16 @@ func (h *FileOperationdHandlerImpl) GetFileMetadata(ctx context.Context, req *st
 		},
 		Metadata: fileMetadata,
 	}, nil
+}
+
+func (h *FileOperationdHandlerImpl) PrepareUpload(ctx context.Context, req *storagev1.PrepareUploadRequest) (*storagev1.PrepareUploadResponse, error) {
+
+	resp, err := h.uploadService.PrepareUpload(ctx, req)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to prepare upload")
+		return nil, status.Errorf(codes.Internal, "failed to prepare upload: %v", err)
+	}
+	return resp, nil
 }
 
 var _ FileOperationdHandler = (*FileOperationdHandlerImpl)(nil)

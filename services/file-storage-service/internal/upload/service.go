@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	uploadv1 "github.com/yaanno/upload-store-process/gen/go/fileupload/v1"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	file "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/file"
@@ -19,7 +20,7 @@ import (
 
 type UploadService interface {
 	Upload(context.Context, *UploadRequest) (*UploadResponse, error)
-	PrepareUpload(context.Context, *uploadv1.PrepareUploadRequest) (*uploadv1.PrepareUploadResponse, error)
+	PrepareUpload(context.Context, *storagev1.PrepareUploadRequest) (*storagev1.PrepareUploadResponse, error)
 }
 
 type UploadServiceImpl struct {
@@ -43,8 +44,8 @@ func NewUploadService(
 // PrepareUpload prepares a file upload by storing initial metadata
 func (s *UploadServiceImpl) PrepareUpload(
 	ctx context.Context,
-	req *uploadv1.PrepareUploadRequest,
-) (*uploadv1.PrepareUploadResponse, error) {
+	req *storagev1.PrepareUploadRequest,
+) (*storagev1.PrepareUploadResponse, error) {
 	// Generate secure file ID
 	fileID, err := token.GenerateSecureFileID()
 	if err != nil {
@@ -88,7 +89,7 @@ func (s *UploadServiceImpl) PrepareUpload(
 		return nil, status.Errorf(codes.Internal, "failed to create file metadata")
 	}
 
-	return &uploadv1.PrepareUploadResponse{
+	return &storagev1.PrepareUploadResponse{
 		StorageUploadToken: uploadToken,
 		StoragePath:        storagePath,
 		GlobalUploadId:     fileID,

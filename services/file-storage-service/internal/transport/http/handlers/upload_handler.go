@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	uploadv1 "github.com/yaanno/upload-store-process/gen/go/fileupload/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	service "github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
@@ -57,39 +56,6 @@ func (h *UploadHandlerImpl) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := h.uploadService.Upload(r.Context(), req)
-	if err != nil {
-		// statusCode, errorResponse := errors.MapToHTTPError(err)
-		// w.WriteHeader(statusCode)
-		// json.NewEncoder(w).Encode(errorResponse)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-func (h *UploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var prepareReq struct {
-		Filename      string `json:"filename"`
-		FileSizeBytes int64  `json:"fileSizeBytes"`
-		UserID        string `json:"userId"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&prepareReq); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.uploadService.PrepareUpload(r.Context(), &uploadv1.PrepareUploadRequest{
-		Filename:      prepareReq.Filename,
-		FileSizeBytes: prepareReq.FileSizeBytes,
-		UserId:        prepareReq.UserID,
-	})
 	if err != nil {
 		// statusCode, errorResponse := errors.MapToHTTPError(err)
 		// w.WriteHeader(statusCode)

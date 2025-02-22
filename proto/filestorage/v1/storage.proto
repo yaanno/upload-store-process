@@ -21,9 +21,6 @@ service FileStorageService {
 
   // Prepare storage for a new file upload
   rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
-
-  // Upload a file
-  rpc UploadFile(UploadFileRequest) returns (UploadFileResponse) {}
 }
 
 // Request to retrieve file metadata
@@ -83,20 +80,4 @@ message PrepareUploadResponse {
   string storage_upload_token = 3;
   int64 expiration_time = 4;
   string global_upload_id = 5;
-}
-
-// Request to upload a file
-message UploadFileRequest {
-  string file_id = 1;                 // Unique file identifier from PrepareUpload
-  string storage_upload_token = 2;    // Token received from PrepareUpload
-  bytes file_content = 3;             // Actual file content
-  int64 file_size = 4;                // Size of the file for validation
-  string user_id = 5;                 // User ID for authentication
-}
-
-// Response after file upload
-message UploadFileResponse {
-  shared.v1.Response base_response = 1;
-  string file_id = 2;                 // File identifier
-  string storage_path = 3;            // Path where file is stored
 }
