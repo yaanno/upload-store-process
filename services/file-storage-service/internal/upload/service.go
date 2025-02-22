@@ -14,6 +14,7 @@ import (
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type UploadService interface {
@@ -66,8 +67,8 @@ func (s *UploadServiceImpl) PrepareUpload(
 		FileId:           fileID,
 		OriginalFilename: req.Filename,
 		FileSizeBytes:    req.FileSizeBytes,
-		FileType:         file.DetermineFileType(req.Filename),
-		UploadTimestamp:  time.Now().Unix(),
+		ContentType:      file.DetermineFileType(req.Filename),
+		CreatedAt:        timestamppb.Now(),
 		UserId:           req.UserID,
 	}
 

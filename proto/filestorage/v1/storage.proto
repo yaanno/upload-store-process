@@ -37,10 +37,7 @@ message GetFileMetadataResponse {
 
 // Request to list files
 message ListFilesRequest {
-  int32 page = 1;
-  int32 page_size = 2;
   string user_id = 3;
-  string file_type = 4;
 }
 
 // Response with file list
@@ -48,7 +45,6 @@ message ListFilesResponse {
   shared.v1.Response base_response = 1;
   repeated shared.v1.FileMetadata files = 2;
   int32 total_files = 3;
-  int32 total_pages = 4;
 }
 
 // Request to delete a file
@@ -67,7 +63,7 @@ message DeleteFileResponse {
 
 // Request to prepare file storage
 message PrepareUploadRequest {
-  string global_upload_id = 1;
+  string file_id = 1;
   string filename = 2;
   int64 file_size_bytes = 3;
   string user_id = 4;
@@ -79,5 +75,5 @@ message PrepareUploadResponse {
   string storage_path = 2;
   string storage_upload_token = 3;
   int64 expiration_time = 4;
-  string global_upload_id = 5;
+  string file_id = 5;
 }

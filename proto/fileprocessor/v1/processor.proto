@@ -11,28 +11,16 @@ service FileProcessorService {
   // Process uploaded file
   rpc ProcessFile(ProcessFileRequest) returns (ProcessFileResponse) {}
 
-  // Extract file metadata
-  rpc ExtractMetadata(ExtractMetadataRequest) returns (ExtractMetadataResponse) {}
-
   // Transform file content
   rpc TransformFile(TransformFileRequest) returns (TransformFileResponse) {}
 
   // Get processing status
   rpc GetProcessingStatus(GetProcessingStatusRequest) returns (GetProcessingStatusResponse) {}
 }
-
-// Supported file types for processing
-enum FileType {
-  FILE_TYPE_UNKNOWN_UNSPECIFIED = 0;
-  FILE_TYPE_CSV = 1;
-  FILE_TYPE_JSON = 2;
-  FILE_TYPE_TXT = 3;
-}
-
 // Request to process a file
 message ProcessFileRequest {
   string file_id = 1;
-  FileType file_type = 2;
+  string user_id = 2;
   ProcessingOptions options = 3;
 }
 
@@ -41,42 +29,23 @@ message ProcessingOptions {
   bool extract_metadata = 1;
   bool validate_content = 2;
   repeated string transformations = 3;
+  map<string, string> transformation_parameters = 4;
 }
 
 // Response after file processing
 message ProcessFileResponse {
   shared.v1.Response base_response = 1;
   string processed_file_id = 2;
-  FileMetadata metadata = 3;
+  shared.v1.FileMetadata metadata = 3;
   bool processing_successful = 4;
-}
-
-// Metadata extracted from file
-message FileMetadata {
-  int64 total_rows = 1;
-  int64 total_columns = 2;
-  repeated string column_names = 3;
-  string primary_data_type = 4;
-  int64 processing_time_ms = 5;
-}
-
-// Request to extract file metadata
-message ExtractMetadataRequest {
-  string file_id = 1;
-  FileType file_type = 2;
-}
-
-// Response with extracted metadata
-message ExtractMetadataResponse {
-  shared.v1.Response base_response = 1;
-  FileMetadata metadata = 2;
 }
 
 // Request for file transformation
 message TransformFileRequest {
   string file_id = 1;
-  FileType file_type = 2;
+  string user_id = 2;
   repeated string transformations = 3;
+  string content_type = 4;
 }
 
 // Response after file transformation
@@ -89,19 +58,13 @@ message TransformFileResponse {
 // Request to check processing status
 message GetProcessingStatusRequest {
   string file_id = 1;
+  string user_id = 2;
 }
 
 // Response with processing status
 message GetProcessingStatusResponse {
   shared.v1.Response base_response = 1;
-  enum ProcessingStatus {
-    PROCESSING_STATUS_UNKNOWN_UNSPECIFIED = 0;
-    PROCESSING_STATUS_QUEUED = 1;
-    PROCESSING_STATUS_PROCESSING = 2;
-    PROCESSING_STATUS_COMPLETED = 3;
-    PROCESSING_STATUS_FAILED = 4;
-  }
-  ProcessingStatus status = 2;
+  shared.v1.ProcessingStatus status = 2;
   string error_message = 3;
   int64 progress_percentage = 4;
 }

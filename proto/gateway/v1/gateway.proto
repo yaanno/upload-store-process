@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package gateway.v1;
+
+import "shared/v1/shared.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/yaanno/upload-store-process/gen/go/apigateway/v1";
+
+service APIGatewayService {
+    rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse) {}
+    rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse) {}
+    rpc ListFiles(ListFilesRequest) returns (ListFilesResponse) {}
+    rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {}
+    rpc GetFileStatus(GetFileStatusRequest) returns (GetFileStatusResponse) {}
+}
+
+message PrepareUploadRequest {
+    string filename = 1;
+    int64 file_size_bytes = 2;
+    string content_type = 3;
+    string user_id = 4;
+}
+
+message PrepareUploadResponse {
+    shared.v1.Response base_response = 1;
+    string upload_token = 2;
+    string file_id = 3;
+    google.protobuf.Timestamp expires_at = 4;
+}
+
+message GetFileMetadataRequest {
+    string file_id = 1;
+    string user_id = 2;
+}
+
+message GetFileMetadataResponse {
+    shared.v1.Response base_response = 1;
+    shared.v1.FileMetadata metadata = 2;
+}
+
+// Request to list files
+message ListFilesRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string user_id = 3;  // Added user ID for authentication
+}
+
+// Response with file list
+message ListFilesResponse {
+  shared.v1.Response base_response = 1;
+  repeated shared.v1.FileMetadata files = 2;
+  int32 total_files = 3;
+  int32 total_pages = 4;
+}
+
+// Request to delete a file
+message DeleteFileRequest {
+  string file_id = 1;
+  bool force_delete = 3;
+  string user_id = 4;  // Added user ID for authentication
+}
+
+// Response after file deletion
+message DeleteFileResponse {
+  shared.v1.Response base_response = 1;
+  bool file_deleted = 2;
+}
+
+// Request to get processing status
+message GetFileStatusRequest {
+  string file_id = 1;
+  string user_id = 2;  // Added user ID for authentication
+}
+
+// Response with processing status
+message GetFileStatusResponse {
+  shared.v1.Response base_response = 1;
+  shared.v1.FileStatus status = 2;
+}

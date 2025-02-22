@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package shared.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/yaanno/upload-store-process/gen/go/shared/v1";
 
 // Standard response structure for all services
@@ -43,34 +45,31 @@ message Response {
   string trace_id = 5;
 }
 
-// Authentication token structure
-message AuthToken {
-  string token = 1;
-  int64 expiration_time = 2;
-  string user_id = 3;
-}
-
-// Pagination request for list operations
-message PaginationRequest {
-  int32 page = 1;
-  int32 page_size = 2;
-}
-
-// Pagination metadata for list responses
-message PaginationMetadata {
-  int32 total_items = 1;
-  int32 total_pages = 2;
-  int32 current_page = 3;
-  int32 page_size = 4;
-}
-
-// Metadata for storing file information
 message FileMetadata {
   string file_id = 1;
   string original_filename = 2;
-  string storage_path = 3;
-  int64 file_size_bytes = 4;
-  string file_type = 5;
-  int64 upload_timestamp = 6;
-  string user_id = 7;
+  int64 file_size_bytes = 3;
+  string content_type = 4;
+  string user_id = 5;
+  string storage_path = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  FileStatus status = 9;
+}
+
+enum FileStatus {
+  FILE_STATUS_UNSPECIFIED = 0;
+  FILE_STATUS_PENDING = 1;
+  FILE_STATUS_UPLOADING = 2;
+  FILE_STATUS_COMPLETE = 3;
+  FILE_STATUS_FAILED = 4;
+  FILE_STATUS_PROCESSING = 5;
+}
+
+enum ProcessingStatus {
+  PROCESSING_STATUS_UNKNOWN_UNSPECIFIED = 0;
+  PROCESSING_STATUS_QUEUED = 1;
+  PROCESSING_STATUS_PROCESSING = 2;
+  PROCESSING_STATUS_COMPLETED = 3;
+  PROCESSING_STATUS_FAILED = 4;
 }

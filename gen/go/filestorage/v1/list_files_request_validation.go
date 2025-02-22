@@ -12,12 +12,6 @@ func (req *ListFilesRequest) Validate() error { // Method on the generated struc
 	if req.UserId == "" {
 		return status.Errorf(codes.InvalidArgument, "user ID is required")
 	}
-	if req.Page < 1 {
-		return status.Errorf(codes.InvalidArgument, "page must be at least 1")
-	}
-	if req.PageSize <= 0 {
-		return status.Errorf(codes.InvalidArgument, "page size must be at least 1")
-	}
 
 	return nil
 }

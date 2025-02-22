@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"math"
 
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
@@ -37,15 +36,10 @@ func NewFileOperationdHandler(metadataService metadata.MetadataService, logger *
 
 // ListFiles retrieves a list of files for a user
 func (h *FileOperationdHandlerImpl) ListFiles(ctx context.Context, req *storagev1.ListFilesRequest) (*storagev1.ListFilesResponse, error) {
-	// Calculate pagination
-	pageSize := int32(req.PageSize)
-	pageNum := int32(req.Page)
 
 	// Prepare list options
 	listOpts := domain.FileMetadataListOptions{
 		UserID: req.UserId,
-		Limit:  int(pageSize),
-		Offset: int((pageNum - 1) * pageSize),
 	}
 
 	// Retrieve file metadata
@@ -62,21 +56,16 @@ func (h *FileOperationdHandlerImpl) ListFiles(ctx context.Context, req *storagev
 			FileId:           metadata.ID,
 			OriginalFilename: metadata.Metadata.OriginalFilename,
 			FileSizeBytes:    metadata.Metadata.FileSizeBytes,
-			UploadTimestamp:  metadata.Metadata.UploadTimestamp,
+			CreatedAt:        metadata.Metadata.CreatedAt,
 		})
 	}
 
 	totalCount := len(files)
 
 	// Calculate total pages
-	var totalPages int32
-	if pageSize > 0 {
-		totalPages = int32(math.Ceil(float64(totalCount) / float64(pageSize)))
-	}
 	return &storagev1.ListFilesResponse{
 		Files:      files,
 		TotalFiles: int32(totalCount),
-		TotalPages: totalPages,
 	}, nil
 }
 
@@ -122,8 +111,8 @@ func (h *FileOperationdHandlerImpl) GetFileMetadata(ctx context.Context, req *st
 		FileId:           metadata.ID,
 		OriginalFilename: metadata.Metadata.OriginalFilename,
 		FileSizeBytes:    metadata.Metadata.FileSizeBytes,
-		FileType:         metadata.Metadata.FileType,
-		UploadTimestamp:  metadata.Metadata.UploadTimestamp,
+		ContentType:      metadata.Metadata.ContentType,
+		CreatedAt:        metadata.Metadata.CreatedAt,
 		UserId:           metadata.Metadata.UserId,
 		StoragePath:      metadata.StoragePath,
 	}
@@ -154,7 +143,7 @@ func (h *FileOperationdHandlerImpl) PrepareUpload(ctx context.Context, req *stor
 	return &storagev1.PrepareUploadResponse{
 		StorageUploadToken: result.UploadToken,
 		StoragePath:        result.StoragePath,
-		GlobalUploadId:     result.FileID,
+		FileId:             result.FileID,
 		BaseResponse: &sharedv1.Response{
 			Message: result.Message,
 		},
