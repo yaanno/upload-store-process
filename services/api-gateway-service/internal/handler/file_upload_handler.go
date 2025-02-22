@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	gatewayv1 "github.com/yaanno/upload-store-process/gen/go/gateway/v1"
+	"github.com/go-chi/chi/v5"
+	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -22,10 +23,10 @@ type FileUploadHandler interface {
 
 type FileUploadHandlerImpl struct {
 	logger  logger.Logger
-	service gatewayv1.APIGatewayServiceClient
+	service storagev1.FileStorageServiceClient
 }
 
-func NewFileUploadHandler(logger logger.Logger, service gatewayv1.APIGatewayServiceClient) *FileUploadHandlerImpl {
+func NewFileUploadHandler(logger logger.Logger, service storagev1.FileStorageServiceClient) *FileUploadHandlerImpl {
 	return &FileUploadHandlerImpl{logger: logger, service: service}
 }
 
@@ -46,10 +47,9 @@ func (h *FileUploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Req
 
 	}
 
-	grpcRequest := &gatewayv1.PrepareUploadRequest{
+	grpcRequest := &storagev1.PrepareUploadRequest{
 		Filename:      req.Filename,
 		FileSizeBytes: req.FileSizeBytes,
-		ContentType:   req.FileType,
 		UserId:        "1", // TODO: get user ID from JWT
 	}
 
@@ -61,16 +61,16 @@ func (h *FileUploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Req
 	// Log successful upload
 	h.logger.Info().
 		Str("file_id", response.GetFileId()).
-		Str("upload_token", response.GetUploadToken()).
+		Str("upload_token", response.GetStorageUploadToken()).
 		Msg("File uploaded successfully")
 
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"storage_upload_token": response.GetUploadToken(),
+		"storage_upload_token": response.GetStorageUploadToken(),
 		"message":              response.GetBaseResponse().Message,
-		"expiration_time":      response.GetExpiresAt().AsTime().Format(time.RFC3339),
-		"file_id":              response.GetFileId(),
+		// "expiration_time":      response.GetExpirationTime(),
+		"file_id": response.GetFileId(),
 	})
 }
 
@@ -78,18 +78,12 @@ func (h *FileUploadHandlerImpl) GetFileMetadata(w http.ResponseWriter, r *http.R
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	fileId, ok := ctx.Value("id").(string)
-	if !ok {
+	fileId := chi.URLParam(r, "id")
+	if fileId == "" {
 		h.logger.Error().Msg("file ID is empty")
 		http.Error(w, "Failed to read file ID", http.StatusBadRequest)
 		return
 	}
-	// if fileId == "" {
-	// 	h.logger.Error().Msg("file ID is empty")
-	// 	http.Error(w, "Failed to read file ID", http.StatusBadRequest)
-	// 	return
-	// }
-
 	// var fileId string
 	err := json.NewDecoder(r.Body).Decode(&fileId)
 	if err != nil {
@@ -98,7 +92,7 @@ func (h *FileUploadHandlerImpl) GetFileMetadata(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	grpcRequest := &gatewayv1.GetFileMetadataRequest{
+	grpcRequest := &storagev1.GetFileMetadataRequest{
 		FileId: fileId,
 		UserId: "1", // TODO: get user ID from JWT
 	}
@@ -124,7 +118,7 @@ func (h *FileUploadHandlerImpl) ListFiles(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	grpcRequest := &gatewayv1.ListFilesRequest{
+	grpcRequest := &storagev1.ListFilesRequest{
 		UserId: "1", // TODO: get user ID from JWT
 	}
 
@@ -135,13 +129,9 @@ func (h *FileUploadHandlerImpl) ListFiles(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Log successful upload
-	h.logger.Info().
-		Msg("files listed successfully")
-
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response.Files)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *FileUploadHandlerImpl) DeleteFile(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +145,7 @@ func (h *FileUploadHandlerImpl) DeleteFile(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Failed to read file ID", http.StatusBadRequest)
 		return
 	}
-	grpcRequest := &gatewayv1.DeleteFileRequest{
+	grpcRequest := &storagev1.DeleteFileRequest{
 		FileId:      fileId,
 		ForceDelete: false,
 		UserId:      "1", // TODO: get user ID from JWT
@@ -177,35 +167,49 @@ func (h *FileUploadHandlerImpl) DeleteFile(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *FileUploadHandlerImpl) GetFileStatus(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	_, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-
-	var fileId string
-	err := json.NewDecoder(r.Body).Decode(&fileId)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to read file ID")
-		http.Error(w, "Failed to read file ID", http.StatusBadRequest)
-		return
-	}
-	grpcRequest := &gatewayv1.GetFileStatusRequest{
-		FileId: fileId,
-		UserId: "1", // TODO: get user ID from JWT,
-	}
-	response, err := h.service.GetFileStatus(ctx, grpcRequest)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("gRPC get file status failed")
-		http.Error(w, "Failed to get file status", http.StatusInternalServerError)
-		return
-	}
-
-	// Log successful upload
-	h.logger.Info().
-		Msg("file status retrieved successfully")
-
-	// Return response
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
+	})
 }
+
+// func (h *FileUploadHandlerImpl) GetFileStatus(w http.ResponseWriter, r *http.Request) {
+// 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+// 	defer cancel()
+
+// 	fileId := chi.URLParamFromCtx(ctx, "id")
+// 	if fileId == "" {
+// 		h.logger.Error().Msg("file ID is empty")
+// 		http.Error(w, "Failed to read file ID", http.StatusBadRequest)
+// 		return
+// 	}
+// 	// err := json.NewDecoder(r.Body).Decode(&fileId)
+// 	// if err != nil {
+// 	// 	h.logger.Error().Err(err).Msg("Failed to read file ID")
+// 	// 	http.Error(w, "Failed to read file ID", http.StatusBadRequest)
+// 	// 	return
+// 	// }
+// 	grpcRequest := &storagev1.GetFileStatusRequest{
+// 		FileId: fileId,
+// 		UserId: "1", // TODO: get user ID from JWT,
+// 	}
+// 	response, err := h.service.GetFileStatus(ctx, grpcRequest)
+// 	if err != nil {
+// 		h.logger.Error().Err(err).Msg("gRPC get file status failed")
+// 		http.Error(w, "Failed to get file status", http.StatusInternalServerError)
+// 		return
+// 	}
+
+// 	// Log successful upload
+// 	h.logger.Info().
+// 		Msg("file status retrieved successfully")
+
+// 	// Return response
+// 	w.Header().Set("Content-Type", "application/json")
+// 	json.NewEncoder(w).Encode(response)
+// }
 
 var _ FileUploadHandler = (*FileUploadHandlerImpl)(nil)
 

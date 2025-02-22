@@ -149,6 +149,15 @@ func (s *MetadataServiceImpl) ListFileMetadata(ctx context.Context, opts *domain
 		// return error
 		return nil, err
 	}
+	if records == nil {
+		// log error
+		s.logger.Error().
+			Str("method", "ListFileMetadata").
+			Err(err).
+			Msg("no file metadata found")
+		// return error
+		return nil, status.Errorf(codes.NotFound, "no file metadata found")
+	}
 	// return records
 	return records, nil
 }

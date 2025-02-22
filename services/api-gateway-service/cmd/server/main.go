@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	gatewayv1 "github.com/yaanno/upload-store-process/gen/go/gateway/v1"
+	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/handler"
 	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/router"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
@@ -37,7 +37,10 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	grpcClientConn, err := grpc.NewClient(cfg.Upload.GRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	grpcClientConn, err := grpc.NewClient(
+		"localhost:50051",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 
 	if err != nil {
 		serviceLogger.Error().Err(err).Msg("Failed to initialize gRPC client")
@@ -46,7 +49,7 @@ func main() {
 	defer grpcClientConn.Close()
 
 	// tokenGenerator := auth.NewTokenGenerator(cfg.JWT.Secret, cfg.JWT.Issuer)
-	service := gatewayv1.NewAPIGatewayServiceClient(grpcClientConn)
+	service := storagev1.NewFileStorageServiceClient(grpcClientConn)
 	// jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(wrappedLogger, cfg.Upload.MaxFileSize, tokenGenerator)
 	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, service)
 

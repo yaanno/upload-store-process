@@ -44,7 +44,17 @@ func (h *FileStorageHandlerImpl) ListFiles(ctx context.Context, req *storagev1.L
 	fileMetadataList, err := h.metadataService.ListFileMetadata(ctx, &listOpts)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to list file metadata")
-		return nil, status.Errorf(codes.Internal, "failed to list files")
+		return nil, status.Errorf(codes.NotFound, "failed to list files")
+	}
+
+	if len(fileMetadataList) == 0 {
+		h.logger.Info().Msg("No files found")
+		return &storagev1.ListFilesResponse{
+			TotalFiles: 0,
+			BaseResponse: &sharedv1.Response{
+				Message: "No files found",
+			},
+		}, nil
 	}
 
 	// Convert to gRPC response

@@ -27,6 +27,7 @@ func SetupRouter(uploadHandler handler.FileUploadHandler, healthCheckHandler han
 		// Health check
 		r.Get("/healthz", healthCheckHandler.Healtz)
 		// File operations
+		r.Get("/files", uploadHandler.ListFiles)
 		r.Get("/status/{id}", uploadHandler.GetFileStatus)
 		r.Get("/metadata/{id}", uploadHandler.GetFileMetadata)
 		r.Post("/prepare-upload", uploadHandler.PrepareUpload)
