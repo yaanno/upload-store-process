@@ -4,11 +4,11 @@ import (
 	"context"
 	"math"
 
-	"github.com/rs/zerolog"
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -22,10 +22,10 @@ type FileOperationdHandler interface {
 
 type FileOperationdHandlerImpl struct {
 	metadataService metadata.MetadataService
-	logger          *zerolog.Logger
+	logger          *logger.Logger
 }
 
-func NewFileOperationdHandler(metadataService metadata.MetadataService, logger *zerolog.Logger) *FileOperationdHandlerImpl {
+func NewFileOperationdHandler(metadataService metadata.MetadataService, logger *logger.Logger) *FileOperationdHandlerImpl {
 	return &FileOperationdHandlerImpl{
 		metadataService: metadataService,
 		logger:          logger,

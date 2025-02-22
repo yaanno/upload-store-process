@@ -3,8 +3,8 @@ package metadata
 import (
 	"context"
 
-	"github.com/rs/zerolog"
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -19,11 +19,11 @@ type MetadataService interface {
 
 type MetadataServiceImpl struct {
 	metadataRepo FileMetadataRepository
-	logger       *zerolog.Logger
+	logger       *logger.Logger
 }
 
 // NewMetadataService creates a new metadata service
-func NewMetadataService(metadataRepo FileMetadataRepository, logger *zerolog.Logger) *MetadataServiceImpl {
+func NewMetadataService(metadataRepo FileMetadataRepository, logger *logger.Logger) *MetadataServiceImpl {
 	return &MetadataServiceImpl{
 		metadataRepo: metadataRepo,
 		logger:       logger,

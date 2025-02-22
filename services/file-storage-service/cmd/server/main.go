@@ -12,9 +12,12 @@ import (
 
 	"google.golang.org/grpc"
 
+	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/interceptor"
 	database "github.com/yaanno/upload-store-process/services/file-storage-service/internal/database/sqlite"
 	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
 	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
+	grpcHandler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/grpc/handlers"
 	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/handlers"
 	router "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/router"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload"
@@ -63,23 +66,26 @@ func main() {
 		os.Exit(1)
 	}
 	uploadService := upload.NewUploadService(metadataRepository, storage, wrappedLogger)
-	// storageServiceServer := service.NewStorageService(wrappedLogger, storage)
-
+	metadataService := repository.NewMetadataService(metadataRepository, &wrappedLogger)
+	storageServiceServer := service.NewStorageService(wrappedLogger, storage)
+	// TODO: this should be the storageServiceServer because the handlers implement the same interface
+	fileOperationHandler := grpcHandler.NewFileOperationdHandler(metadataService, &wrappedLogger)
 	// 7. Initialize gRPC Server
-	// grpcListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
-	// if err != nil {
-	// 	serviceLogger.Error().Err(err).Str("host", cfg.Server.Host).Int("port", cfg.Server.Port).Msg("Failed to create gRPC listener, service exiting")
-	// 	os.Exit(1)
-	// }
-	// grpcServer := grpc.NewServer(
-	// 	grpc.UnaryInterceptor(interceptor.ValidationInterceptor()),
-	// )
-	// storagev1.RegisterFileStorageServiceServer(grpcServer, storageServiceServer)
+	grpcListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
+	if err != nil {
+		serviceLogger.Error().Err(err).Str("host", cfg.Server.Host).Int("port", cfg.Server.Port).Msg("Failed to create gRPC listener, service exiting")
+		os.Exit(1)
+	}
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(interceptor.ValidationInterceptor()),
+	)
+	storagev1.RegisterFileStorageServiceServer(grpcServer, fileOperationHandler)
 
 	// 8. Initialize HTTP Server
 
 	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, uploadService)
 	healthHandler := handler.NewHealthHandler(&serviceLogger)
+
 	router := router.SetupRouter(uploadHandler, healthHandler)
 
 	httpServer := &http.Server{
@@ -88,7 +94,7 @@ func main() {
 	}
 
 	// 9. Start Servers in Goroutines
-	// go startGrpcServer(grpcServer, grpcListener, wrappedLogger, cfg.Server)
+	go startGrpcServer(grpcServer, grpcListener, wrappedLogger, cfg.Server)
 	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
 
 	// 10. Graceful Shutdown Handling
