@@ -15,3 +15,18 @@ type UploadResponse struct {
 	StoragePath string
 	Message     string
 }
+
+type PrepareUploadRequest struct {
+	Filename      string
+	FileSizeBytes int64
+	UserID        string
+	ContentType   string
+}
+
+type PrepareUploadResponse struct {
+	FileID      string
+	UploadToken string
+	StoragePath string
+	ExpiresAt   int64
+	Message     string
+}

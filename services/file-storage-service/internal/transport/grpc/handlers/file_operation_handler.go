@@ -139,12 +139,26 @@ func (h *FileOperationdHandlerImpl) GetFileMetadata(ctx context.Context, req *st
 
 func (h *FileOperationdHandlerImpl) PrepareUpload(ctx context.Context, req *storagev1.PrepareUploadRequest) (*storagev1.PrepareUploadResponse, error) {
 
-	resp, err := h.uploadService.PrepareUpload(ctx, req)
+	serviceReq := &upload.PrepareUploadRequest{
+		Filename:      req.Filename,
+		FileSizeBytes: req.FileSizeBytes,
+		UserID:        req.UserId,
+	}
+
+	result, err := h.uploadService.PrepareUpload(ctx, serviceReq)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to prepare upload")
 		return nil, status.Errorf(codes.Internal, "failed to prepare upload: %v", err)
 	}
-	return resp, nil
+
+	return &storagev1.PrepareUploadResponse{
+		StorageUploadToken: result.UploadToken,
+		StoragePath:        result.StoragePath,
+		GlobalUploadId:     result.FileID,
+		BaseResponse: &sharedv1.Response{
+			Message: result.Message,
+		},
+	}, nil
 }
 
 var _ FileOperationdHandler = (*FileOperationdHandlerImpl)(nil)
