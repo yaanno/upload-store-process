@@ -1,99 +1,169 @@
 package metadata
 
-// import (
-// 	"context"
+import (
+	"context"
 
-// 	"github.com/rs/zerolog"
-// 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
-// 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
-// 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
-// 	metadataRepo "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata/repository/sqlite"
-// 	"google.golang.org/grpc/codes"
-// 	"google.golang.org/grpc/status"
-// )
+	"github.com/rs/zerolog"
+	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
 
-// type MetadataService interface {
-// 	CreateFileMetadata(ctx context.Context, req *storagev1.) (*storagev1.CreateFileMetadataResponse, error)
-// 	GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error)
-// }
+// MetadataService defines the interface for file metadata operations
+type MetadataService interface {
+	CreateFileMetadata(ctx context.Context) error
+	GetFileMetadata(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error)
+	DeleteFileMetadata(ctx context.Context, fileID string) error
+	ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) (records []*domain.FileMetadataRecord, err error)
+}
 
-// type MetadataServiceImpl struct {
-// 	metadataRepo metadataRepo.SQLiteFileMetadataRepository
-// 	logger       *zerolog.Logger
-// }
+type MetadataServiceImpl struct {
+	metadataRepo FileMetadataRepository
+	logger       *zerolog.Logger
+}
 
-// // NewMetadataService creates a new metadata service
-// func NewMetadataService(metadataRepo metadataRepo.SQLiteFileMetadataRepository, logger *zerolog.Logger) *MetadataServiceImpl {
-// 	return &MetadataServiceImpl{
-// 		metadataRepo: metadataRepo,
-// 		logger:       logger,
-// 	}
-// }
+// NewMetadataService creates a new metadata service
+func NewMetadataService(metadataRepo FileMetadataRepository, logger *zerolog.Logger) *MetadataServiceImpl {
+	return &MetadataServiceImpl{
+		metadataRepo: metadataRepo,
+		logger:       logger,
+	}
+}
 
-// // GetFileMetadata implements v1.FileStorageServiceServer.
-// func (s *MetadataServiceImpl) GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
+func (s *MetadataServiceImpl) CreateFileMetadata(ctx context.Context) error {
+	// cancels the context if the request is canceled
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// create metadata record structure, sample for now
+	metadata := &domain.FileMetadataRecord{
+		ID:               "123",
+		StoragePath:      "test",
+		ProcessingStatus: "test",
+	}
+	// call repository operation
+	if err := s.metadataRepo.CreateFileMetadata(ctx, metadata); err != nil { // log error
+		s.logger.Error().
+			Str("method", "CreateFileMetadata").
+			Err(err).
+			Msg("failed to create file metadata")
+		// return error
+		return err
+	}
+	// return nil
+	return nil
+}
 
-// 	// Retrieve file metadata
-// 	metadata, err := s.repo.RetrieveFileMetadataByID(ctx, req.FileId)
-// 	if err != nil {
-// 		s.logger.Error().
-// 			Str("method", "GetFileMetadata").
-// 			Err(err).
-// 			Str("fileId", req.FileId).
-// 			Msg("failed to retrieve file metadata")
-// 		return nil, status.Errorf(codes.NotFound, "file metadata not found")
-// 	}
+func (s *MetadataServiceImpl) GetFileMetadata(ctx context.Context, fileID string) (record *domain.FileMetadataRecord, err error) {
+	// cancels the context if the request is canceled
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-// 	if err := s.ValidateGetFileMetadataRequest(ctx, req); err != nil {
-// 		return nil, err
-// 	}
+	var userID string // TODO: get user id from context
+	if err := s.validateFileOwnership(ctx, userID, fileID); err != nil {
+		// log error
+		s.logger.Error().
+			Str("method", "DeleteFileMetadata").
+			Err(err).
+			Str("fileId", fileID).
+			Msg("failed to validate file ownership")
+		// return error
+		return nil, status.Errorf(codes.PermissionDenied, "failed to validate file ownership")
+	}
 
-// 	// Transform metadata to GetFileMetadataResponse
-// 	fileMetadata := &sharedv1.FileMetadata{
-// 		FileId:           metadata.ID,
-// 		OriginalFilename: metadata.Metadata.OriginalFilename,
-// 		FileSizeBytes:    metadata.Metadata.FileSizeBytes,
-// 		FileType:         metadata.Metadata.FileType,
-// 		UploadTimestamp:  metadata.Metadata.UploadTimestamp,
-// 		UserId:           metadata.Metadata.UserId,
-// 		StoragePath:      metadata.StoragePath,
-// 	}
+	// call repository operation
+	record, err = s.metadataRepo.RetrieveFileMetadataByID(ctx, fileID)
+	if err != nil {
+		// log error
+		s.logger.Error().
+			Str("method", "GetFileMetadata").
+			Err(err).
+			Str("fileId", fileID).
+			Msg("failed to retrieve file metadata")
+		// return error
+		return nil, err
+	}
+	// return record
+	return record, nil
+}
 
-// 	// Return response
-// 	return &storagev1.GetFileMetadataResponse{
-// 		BaseResponse: &sharedv1.Response{
-// 			Message: "File metadata retrieved successfully",
-// 		},
-// 		Metadata: fileMetadata,
-// 	}, nil
-// }
+func (s *MetadataServiceImpl) DeleteFileMetadata(ctx context.Context, fileID string) error {
+	// cancels the context if the request is canceled
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// validate ownership
+	var userID string // TODO: get user id from context
+	if err := s.validateFileOwnership(ctx, userID, fileID); err != nil {
+		// log error
+		s.logger.Error().
+			Str("method", "DeleteFileMetadata").
+			Err(err).
+			Str("fileId", fileID).
+			Msg("failed to validate file ownership")
+		// return error
+		return status.Errorf(codes.PermissionDenied, "failed to validate file ownership")
+	}
 
-// // ValidateGetFileMetadataRequest validates the get file metadata request
-// func (s *MetadataServiceImpl) ValidateGetFileMetadataRequest(ctx context.Context, req *storagev1.GetFileMetadataRequest) error {
+	if err := s.metadataRepo.RemoveFileMetadata(ctx, fileID); err != nil {
+		// log error
+		s.logger.Error().
+			Str("method", "DeleteFileMetadata").
+			Err(err).
+			Str("fileId", fileID).
+			Msg("failed to delete file metadata")
+		// return error
+		return err
+	}
+	return nil
+}
 
-// 	opts := &domain.FileMetadataListOptions{
-// 		UserID: req.UserId,
-// 		FileID: req.FileId,
-// 	}
+func (s *MetadataServiceImpl) ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) (records []*domain.FileMetadataRecord, err error) {
+	// cancels the context if the request is canceled
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-// 	isOwner, err := s.repo.IsFileOwnedByUser(ctx, opts)
-// 	if err != nil {
-// 		s.logger.Error().
-// 			Str("method", "GetFileMetadata").
-// 			Err(err).
-// 			Str("file_id", req.FileId).
-// 			Msg("failed to check file ownership")
-// 		return status.Errorf(codes.Internal, "failed to check file ownership: %v", err)
-// 	}
+	// call repository operation
+	records, err = s.metadataRepo.ListFileMetadata(ctx, opts)
+	if err != nil {
+		// log error
+		s.logger.Error().
+			Str("method", "ListFileMetadata").
+			Err(err).
+			Msg("failed to list file metadata")
+		// return error
+		return nil, err
+	}
+	// return records
+	return records, nil
+}
 
-// 	if !isOwner {
-// 		s.logger.Warn().
-// 			Str("method", "GetFileMetadata").
-// 			Str("file_id", req.FileId).
-// 			Str("user_id", req.UserId).
-// 			Msg("user does not own file")
-// 		return status.Errorf(codes.PermissionDenied, "user does not own file")
-// 	}
+var _ MetadataService = (*MetadataServiceImpl)(nil)
 
-// 	return nil
-// }
+// ValidateGetFileMetadataRequest validates the get file metadata request
+func (s *MetadataServiceImpl) validateFileOwnership(ctx context.Context, userID string, fileID string) error {
+
+	opts := &domain.FileMetadataListOptions{
+		UserID: userID,
+		FileID: fileID,
+	}
+
+	isOwner, err := s.metadataRepo.IsFileOwnedByUser(ctx, opts)
+	if err != nil {
+		s.logger.Error().
+			Str("method", "GetFileMetadata").
+			Err(err).
+			Str("file_id", fileID).
+			Msg("failed to check file ownership")
+		return status.Errorf(codes.Internal, "failed to check file ownership: %v", err)
+	}
+
+	if !isOwner {
+		s.logger.Warn().
+			Str("method", "GetFileMetadata").
+			Str("file_id", fileID).
+			Str("user_id", userID).
+			Msg("user does not own file")
+		return status.Errorf(codes.PermissionDenied, "user does not own file")
+	}
+
+	return nil
+}

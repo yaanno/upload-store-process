@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-const serviceName = "file-upload-service"
+const serviceName = "api-gateway-service"
 
 func main() {
 	// 1. Load Configuration

@@ -101,14 +101,6 @@ func (h *UploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(resp)
 }
 
-func handleError(w http.ResponseWriter, err error) {
-	panic("unimplemented")
-}
-
-func parseFileSize(s string) {
-	panic("unimplemented")
-}
-
 func (h *UploadHandlerImpl) CreateFile(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()

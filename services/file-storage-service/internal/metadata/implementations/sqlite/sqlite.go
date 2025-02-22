@@ -583,7 +583,7 @@ func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, op
 	return count > 0, nil
 }
 
-func (r *SQLiteFileMetadataRepository) SoftDeleteFile(ctx context.Context, fileID, userID string) error {
+func (r *SQLiteFileMetadataRepository) SoftDeleteMetadata(ctx context.Context, fileID, userID string) error {
 	query := `
         UPDATE file_metadata 
         SET 
