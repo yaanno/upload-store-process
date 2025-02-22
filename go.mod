@@ -16,6 +16,7 @@ require github.com/cespare/xxhash/v2 v2.3.0 // indirect
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/go-chi/chi v1.5.5
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httprate v0.14.1

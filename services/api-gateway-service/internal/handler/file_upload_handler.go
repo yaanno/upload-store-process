@@ -21,13 +21,12 @@ type FileUploadHandler interface {
 }
 
 type FileUploadHandlerImpl struct {
-	logger      logger.Logger
-	maxFileSize int64
-	service     gatewayv1.APIGatewayServiceClient
+	logger  logger.Logger
+	service gatewayv1.APIGatewayServiceClient
 }
 
-func NewFileUploadHandler(logger logger.Logger, maxFileSize int64, service gatewayv1.APIGatewayServiceClient) *FileUploadHandlerImpl {
-	return &FileUploadHandlerImpl{logger: logger, maxFileSize: maxFileSize, service: service}
+func NewFileUploadHandler(logger logger.Logger, service gatewayv1.APIGatewayServiceClient) *FileUploadHandlerImpl {
+	return &FileUploadHandlerImpl{logger: logger, service: service}
 }
 
 func (h *FileUploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +78,19 @@ func (h *FileUploadHandlerImpl) GetFileMetadata(w http.ResponseWriter, r *http.R
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	var fileId string
+	fileId, ok := ctx.Value("id").(string)
+	if !ok {
+		h.logger.Error().Msg("file ID is empty")
+		http.Error(w, "Failed to read file ID", http.StatusBadRequest)
+		return
+	}
+	// if fileId == "" {
+	// 	h.logger.Error().Msg("file ID is empty")
+	// 	http.Error(w, "Failed to read file ID", http.StatusBadRequest)
+	// 	return
+	// }
+
+	// var fileId string
 	err := json.NewDecoder(r.Body).Decode(&fileId)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to read file ID")

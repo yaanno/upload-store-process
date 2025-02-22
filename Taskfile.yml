@@ -37,7 +37,7 @@ tasks:
   services:upload:
     desc: Start FileUpload service
     cmds:
-      - go run ./services/file-upload-service/cmd/server/main.go
+      - go run ./services/api-gateway-service/cmd/server/main.go
   services:storage:
     desc: Start FileStorage service
     cmds:

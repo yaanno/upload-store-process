@@ -8,12 +8,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	gatewayv1 "github.com/yaanno/upload-store-process/gen/go/gateway/v1"
 	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/handler"
-	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/middleware"
-	"github.com/yaanno/upload-store-process/services/shared/pkg/auth"
+	"github.com/yaanno/upload-store-process/services/api-gateway-service/internal/router"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/config"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc"
@@ -47,47 +45,45 @@ func main() {
 	}
 	defer grpcClientConn.Close()
 
-	tokenGenerator := auth.NewTokenGenerator(cfg.JWT.Secret, cfg.JWT.Issuer)
+	// tokenGenerator := auth.NewTokenGenerator(cfg.JWT.Secret, cfg.JWT.Issuer)
 	service := gatewayv1.NewAPIGatewayServiceClient(grpcClientConn)
-	jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(wrappedLogger, cfg.Upload.MaxFileSize, tokenGenerator)
-	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, cfg.Upload.MaxFileSize, service)
+	// jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(wrappedLogger, cfg.Upload.MaxFileSize, tokenGenerator)
+	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, service)
+
+	// 7. Initialize Health Check Handler
+	healthCheckHandler := handler.NewHealthHandler(&wrappedLogger)
+
+	router := router.SetupRouter(uploadHandler, healthCheckHandler)
 
 	// 8. Initialize HTTP Server
-	httpMux := http.NewServeMux()
-	// httpMux.HandleFunc("/v1/files/upload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.HandleFileUpload))
-	httpMux.HandleFunc("/v1/files/prepare-upload", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.PrepareUpload))
-	httpMux.HandleFunc("/v1/files/getmetadata", jwtAuthMiddleware.JWTAuthMiddleware(uploadHandler.GetFileMetadata))
-	httpMux.HandleFunc("/healthz", healthCheckHandler) // Health check endpoint
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.HttpServer.Host, cfg.HttpServer.Port),
-		Handler: httpMux,
+		Handler: router,
 	}
 
 	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
 
+	waitForShutdown(httpServer, wrappedLogger)
+
 	// Wait for stop signal
-	<-stop
-	wrappedLogger.Info().Msg("Shutting down gracefully...")
+	// <-stop
+	// wrappedLogger.Info().Msg("Shutting down gracefully...")
 
-	// Shutdown timeout
-	shutdownTimeout := 10 * time.Second
+	// // Shutdown timeout
+	// shutdownTimeout := 10 * time.Second
 
-	// Create a context with timeout for graceful shutdown
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer shutdownCancel()
+	// // Create a context with timeout for graceful shutdown
+	// shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	// defer shutdownCancel()
 
-	// Shutdown HTTP server
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		wrappedLogger.Error().Err(err).Msg("HTTP server shutdown error")
-	}
+	// // Shutdown HTTP server
+	// if err := httpServer.Shutdown(shutdownCtx); err != nil {
+	// 	wrappedLogger.Error().Err(err).Msg("HTTP server shutdown error")
+	// }
 
 }
 
-func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
-}
 func startHttpServer(httpServer *http.Server, serviceLogger logger.Logger, httpServerCfg config.HttpServerConfig) {
 	serviceLogger.Info().
 		Str("host", httpServerCfg.Host).
@@ -156,4 +152,14 @@ func validateConfig(cfg *config.ServiceConfig) error {
 		return errors.New("storage base path must be configured")
 	}
 	return nil
+}
+
+func waitForShutdown(httpServer *http.Server, serviceLogger logger.Logger) {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	serviceLogger.Info().Msg("Shutting down servers...")
+	httpServer.Shutdown(context.Background())
+	serviceLogger.Info().Msg("Server shutdown complete")
 }
