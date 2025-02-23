@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/health"
 )
 
 type HealthHandler struct {
-	logger zerolog.Logger
+	logger  zerolog.Logger
+	checker *health.HealthChecker
 }
 
 type HealthStatus struct {
@@ -20,31 +22,31 @@ type HealthStatus struct {
 
 var ErrorStatus = "error"
 
-func NewHealthHandler(logger *zerolog.Logger) HealthHandler {
+func NewHealthHandler(logger *zerolog.Logger, checker *health.HealthChecker) HealthHandler {
 	return HealthHandler{
-		logger: logger.With().Str("component", "health_handler").Logger(),
+		logger:  logger.With().Str("component", "health_handler").Logger(),
+		checker: checker,
 	}
 }
 
 func (h *HealthHandler) Healtz(w http.ResponseWriter, r *http.Request) {
-	_, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	status := HealthStatus{
-		Status:    "ok",
-		Timestamp: time.Now(),
+	checks := h.checker.CheckHealth(ctx)
+
+	status := http.StatusOK
+	for _, check := range checks {
+		if check.Status == health.StatusDown {
+			h.logger.Warn().Str("component", check.Component).Msg("component is not ok")
+			status = http.StatusServiceUnavailable
+			break
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if status.Status != "ok" {
-		h.logger.Error().Msg("service is not ok")
-		w.WriteHeader(http.StatusServiceUnavailable)
-	} else {
-		h.logger.Info().Msg("service is ok")
-		w.WriteHeader(http.StatusOK)
-	}
-
-	if err := json.NewEncoder(w).Encode(status); err != nil {
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(checks); err != nil {
 		h.logger.Error().Err(err).Msg("failed to encode response")
 		http.Error(w, "failed to encode response", http.StatusServiceUnavailable)
 	}

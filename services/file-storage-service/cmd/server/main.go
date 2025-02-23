@@ -15,6 +15,7 @@ import (
 	storagev1 "github.com/yaanno/upload-store-process/gen/go/filestorage/v1"
 	"github.com/yaanno/upload-store-process/services/file-storage-service/interceptor"
 	database "github.com/yaanno/upload-store-process/services/file-storage-service/internal/database/sqlite"
+	healthchecker "github.com/yaanno/upload-store-process/services/file-storage-service/internal/health"
 	repository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
 	storageProvider "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage"
 	grpcHandler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/grpc/handlers"
@@ -68,6 +69,8 @@ func main() {
 	uploadService := upload.NewUploadService(metadataRepository, storage, &wrappedLogger)
 	metadataService := repository.NewMetadataService(metadataRepository, &wrappedLogger)
 
+	healthChecker := healthchecker.NewHealthChecker(db, cfg.Storage.BasePath)
+
 	// TODO: this should be the storageServiceServer because the handlers implement the same interface
 	fileOperationHandler := grpcHandler.NewFileOperationdHandler(metadataService, &wrappedLogger)
 
@@ -82,7 +85,7 @@ func main() {
 	// 8. Initialize HTTP Server
 
 	uploadHandler := handler.NewFileUploadHandler(&wrappedLogger, uploadService)
-	healthHandler := handler.NewHealthHandler(&serviceLogger)
+	healthHandler := handler.NewHealthHandler(&serviceLogger, healthChecker)
 	houseKeepingHandler := handler.NewHouseKeepingHandler(metadataService, &wrappedLogger)
 	router := router.SetupRouter(uploadHandler, healthHandler, houseKeepingHandler)
 
