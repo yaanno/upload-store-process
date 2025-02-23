@@ -92,25 +92,66 @@ func (s *MetadataServiceImpl) UpdateFileMetadata(ctx context.Context, fileID str
 }
 
 func (s *MetadataServiceImpl) CreateFileMetadata(ctx context.Context) error {
-	// cancels the context if the request is canceled
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	// create metadata record structure, sample for now
+	txCtx, err := s.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	var success bool
+	defer func() {
+		if !success {
+			if rbErr := s.RollbackTx(txCtx); rbErr != nil {
+				s.logger.Error().Err(rbErr).Msg("failed to rollback transaction")
+			}
+		}
+	}()
+
 	metadata := &domain.FileMetadataRecord{
 		ID:               "123",
 		StoragePath:      "test",
 		ProcessingStatus: "test",
 	}
-	// call repository operation
-	if err := s.metadataRepo.CreateFileMetadata(ctx, metadata); err != nil { // log error
-		s.logger.Error().
-			Str("method", "CreateFileMetadata").
-			Err(err).
-			Msg("failed to create file metadata")
-		// return error
+
+	if err := s.metadataRepo.CreateFileMetadata(txCtx, metadata); err != nil {
+		return fmt.Errorf("failed to create file metadata: %w", err)
+	}
+
+	if err := s.CommitTx(txCtx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	success = true
+	return nil
+}
+
+func (s *MetadataServiceImpl) DeleteFileMetadata(ctx context.Context, userID string, fileID string) error {
+	txCtx, err := s.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	var success bool
+	defer func() {
+		if !success {
+			if rbErr := s.RollbackTx(txCtx); rbErr != nil {
+				s.logger.Error().Err(rbErr).Msg("failed to rollback transaction")
+			}
+		}
+	}()
+
+	if err := s.validateFileOwnership(txCtx, userID, fileID); err != nil {
 		return err
 	}
-	// return nil
+
+	if err := s.metadataRepo.RemoveFileMetadata(txCtx, fileID); err != nil {
+		return fmt.Errorf("failed to delete file metadata: %w", err)
+	}
+
+	if err := s.CommitTx(txCtx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	success = true
 	return nil
 }
 
@@ -144,35 +185,6 @@ func (s *MetadataServiceImpl) GetFileMetadata(ctx context.Context, userID string
 	}
 	// return record
 	return record, nil
-}
-
-func (s *MetadataServiceImpl) DeleteFileMetadata(ctx context.Context, userID string, fileID string) error {
-	// cancels the context if the request is canceled
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	// validate ownership
-	if err := s.validateFileOwnership(ctx, userID, fileID); err != nil {
-		// log error
-		s.logger.Error().
-			Str("method", "DeleteFileMetadata").
-			Err(err).
-			Str("fileId", fileID).
-			Msg("failed to validate file ownership")
-		// return error
-		return status.Errorf(codes.PermissionDenied, "failed to validate file ownership")
-	}
-
-	if err := s.metadataRepo.RemoveFileMetadata(ctx, fileID); err != nil {
-		// log error
-		s.logger.Error().
-			Str("method", "DeleteFileMetadata").
-			Err(err).
-			Str("fileId", fileID).
-			Msg("failed to delete file metadata")
-		// return error
-		return err
-	}
-	return nil
 }
 
 func (s *MetadataServiceImpl) ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) (records []*domain.FileMetadataRecord, err error) {
@@ -331,8 +343,6 @@ func (s *MetadataServiceImpl) validateFileOwnership(ctx context.Context, userID 
 }
 
 func (s *MetadataServiceImpl) generateStoragePath(fileID string) (string, error) {
-	// Implement storage path generation logic here
-	// This could involve combining the fileID with a timestamp or other factors
 	timestamp := time.Now().UnixNano()
 	return fmt.Sprintf("%d-%s", timestamp, fileID), nil
 }
