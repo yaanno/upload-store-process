@@ -57,12 +57,15 @@ func (h *UploadHandlerImpl) Upload(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.uploadService.Upload(r.Context(), req)
 	if err != nil {
-		// statusCode, errorResponse := errors.MapToHTTPError(err)
-		// w.WriteHeader(statusCode)
-		// json.NewEncoder(w).Encode(errorResponse)
+		h.logger.Error().Err(err).Msg("Failed to upload file")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Internal server error",
+			"error":   err.Error(),
+		})
 		return
 	}
-
+	h.logger.Info().Msg("File uploaded successfully")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
