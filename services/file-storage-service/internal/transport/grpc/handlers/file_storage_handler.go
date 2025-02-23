@@ -81,7 +81,7 @@ func (h *FileStorageHandlerImpl) ListFiles(ctx context.Context, req *storagev1.L
 func (h *FileStorageHandlerImpl) DeleteFile(ctx context.Context, req *storagev1.DeleteFileRequest) (*storagev1.DeleteFileResponse, error) {
 
 	//  delete file from database
-	if err := h.metadataService.DeleteFileMetadata(ctx, req.FileId); err != nil {
+	if err := h.metadataService.DeleteFileMetadata(ctx, req.UserId, req.FileId); err != nil {
 		h.logger.Error().
 			Str("method", "DeleteFile").
 			Err(err).
@@ -102,9 +102,8 @@ func (h *FileStorageHandlerImpl) DeleteFile(ctx context.Context, req *storagev1.
 
 // // GetFileMetadata implements v1.FileStorageServiceServer.
 func (h *FileStorageHandlerImpl) GetFileMetadata(ctx context.Context, req *storagev1.GetFileMetadataRequest) (*storagev1.GetFileMetadataResponse, error) {
-
 	// Retrieve file metadata
-	metadata, err := h.metadataService.GetFileMetadata(ctx, req.FileId)
+	metadata, err := h.metadataService.GetFileMetadata(ctx, req.UserId, req.FileId)
 	if err != nil {
 		h.logger.Error().
 			Str("method", "GetFileMetadata").

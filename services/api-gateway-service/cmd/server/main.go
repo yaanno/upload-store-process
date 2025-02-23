@@ -33,12 +33,9 @@ func main() {
 	serviceLogger := log.WithService(serviceName)
 	wrappedLogger := logger.Logger{Logger: serviceLogger}
 
-	// Signal handling for graceful stopping
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-
+	grpcServerPath := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	grpcClientConn, err := grpc.NewClient(
-		"localhost:50051",
+		grpcServerPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 
@@ -48,9 +45,8 @@ func main() {
 	}
 	defer grpcClientConn.Close()
 
-	// tokenGenerator := auth.NewTokenGenerator(cfg.JWT.Secret, cfg.JWT.Issuer)
 	service := storagev1.NewFileStorageServiceClient(grpcClientConn)
-	// jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(wrappedLogger, cfg.Upload.MaxFileSize, tokenGenerator)
+
 	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, service)
 
 	// 7. Initialize Health Check Handler
@@ -68,23 +64,6 @@ func main() {
 	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
 
 	waitForShutdown(httpServer, wrappedLogger)
-
-	// Wait for stop signal
-	// <-stop
-	// wrappedLogger.Info().Msg("Shutting down gracefully...")
-
-	// // Shutdown timeout
-	// shutdownTimeout := 10 * time.Second
-
-	// // Create a context with timeout for graceful shutdown
-	// shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	// defer shutdownCancel()
-
-	// // Shutdown HTTP server
-	// if err := httpServer.Shutdown(shutdownCtx); err != nil {
-	// 	wrappedLogger.Error().Err(err).Msg("HTTP server shutdown error")
-	// }
-
 }
 
 func startHttpServer(httpServer *http.Server, serviceLogger logger.Logger, httpServerCfg config.HttpServerConfig) {
@@ -103,36 +82,19 @@ func loadConfiguration() (*config.ServiceConfig, error) {
 		Logging: logger.LoggerConfig{
 			Level:       "info",
 			JSON:        true,
-			Development: false,
+			Development: true,
 		},
 		Server: config.ServerConfig{
 			Host: "0.0.0.0",
-			Port: 50051,
+			Port: 8001,
 		},
 		HttpServer: config.HttpServerConfig{
 			Host: "0.0.0.0",
-			Port: 50052,
-		},
-		Database: config.DatabaseConfig{
-			Driver: "sqlite",
-			Path:   "/data/storage.db",
-		},
-		NATS: config.NATSConfig{
-			Servers: []string{"nats://localhost:4222"},
-			Cluster: "upload-store-cluster",
-		},
-		Storage: config.Storage{
-			Provider:    "local",
-			BasePath:    "/data/uploads",
-			MaxFileSize: 10 * 1024 * 1024,
+			Port: 8080,
 		},
 		JWT: config.JWT{
 			Secret: "secret_key",
 			Issuer: "myservice",
-		},
-		Upload: config.Upload{
-			MaxFileSize: 10 * 1024 * 1024,
-			GRPCAddress: "localhost:50051",
 		},
 	}
 
@@ -150,9 +112,6 @@ func loadConfiguration() (*config.ServiceConfig, error) {
 func validateConfig(cfg *config.ServiceConfig) error {
 	if cfg.JWT.Secret == "" {
 		return errors.New("JWT secret must be configured")
-	}
-	if cfg.Storage.BasePath == "" {
-		return errors.New("storage base path must be configured")
 	}
 	return nil
 }

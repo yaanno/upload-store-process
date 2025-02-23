@@ -42,11 +42,6 @@ func (h *FileUploadHandlerImpl) PrepareUpload(w http.ResponseWriter, r *http.Req
 
 	var req Request
 
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-
-	}
-
 	grpcRequest := &storagev1.PrepareUploadRequest{
 		Filename:      req.Filename,
 		FileSizeBytes: req.FileSizeBytes,
@@ -79,15 +74,9 @@ func (h *FileUploadHandlerImpl) GetFileMetadata(w http.ResponseWriter, r *http.R
 	defer cancel()
 
 	fileId := chi.URLParam(r, "id")
+
 	if fileId == "" {
 		h.logger.Error().Msg("file ID is empty")
-		http.Error(w, "Failed to read file ID", http.StatusBadRequest)
-		return
-	}
-	// var fileId string
-	err := json.NewDecoder(r.Body).Decode(&fileId)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to read file ID")
 		http.Error(w, "Failed to read file ID", http.StatusBadRequest)
 		return
 	}
@@ -138,13 +127,8 @@ func (h *FileUploadHandlerImpl) DeleteFile(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	var fileId string
-	err := json.NewDecoder(r.Body).Decode(&fileId)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to read file ID")
-		http.Error(w, "Failed to read file ID", http.StatusBadRequest)
-		return
-	}
+	fileId := chi.URLParam(r, "id")
+
 	grpcRequest := &storagev1.DeleteFileRequest{
 		FileId:      fileId,
 		ForceDelete: false,
@@ -169,9 +153,11 @@ func (h *FileUploadHandlerImpl) DeleteFile(w http.ResponseWriter, r *http.Reques
 func (h *FileUploadHandlerImpl) GetFileStatus(w http.ResponseWriter, r *http.Request) {
 	_, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
+	fileId := chi.URLParam(r, "id")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
+		"status":  "ok",
+		"file_id": fileId,
 	})
 }
 

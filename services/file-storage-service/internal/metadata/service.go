@@ -28,8 +28,8 @@ type PrepareUploadResult struct {
 // MetadataService defines the interface for file metadata operations
 type MetadataService interface {
 	CreateFileMetadata(ctx context.Context) error
-	GetFileMetadata(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error)
-	DeleteFileMetadata(ctx context.Context, fileID string) error
+	GetFileMetadata(ctx context.Context, userID string, fileID string) (*domain.FileMetadataRecord, error)
+	DeleteFileMetadata(ctx context.Context, userID string, fileID string) error
 	ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) (records []*domain.FileMetadataRecord, err error)
 	PrepareUpload(ctx context.Context, params *PrepareUploadParams) (*PrepareUploadResult, error)
 }
@@ -70,12 +70,11 @@ func (s *MetadataServiceImpl) CreateFileMetadata(ctx context.Context) error {
 	return nil
 }
 
-func (s *MetadataServiceImpl) GetFileMetadata(ctx context.Context, fileID string) (record *domain.FileMetadataRecord, err error) {
+func (s *MetadataServiceImpl) GetFileMetadata(ctx context.Context, userID string, fileID string) (record *domain.FileMetadataRecord, err error) {
 	// cancels the context if the request is canceled
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var userID string // TODO: get user id from context
 	if err := s.validateFileOwnership(ctx, userID, fileID); err != nil {
 		// log error
 		s.logger.Error().
@@ -103,12 +102,11 @@ func (s *MetadataServiceImpl) GetFileMetadata(ctx context.Context, fileID string
 	return record, nil
 }
 
-func (s *MetadataServiceImpl) DeleteFileMetadata(ctx context.Context, fileID string) error {
+func (s *MetadataServiceImpl) DeleteFileMetadata(ctx context.Context, userID string, fileID string) error {
 	// cancels the context if the request is canceled
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// validate ownership
-	var userID string // TODO: get user id from context
 	if err := s.validateFileOwnership(ctx, userID, fileID); err != nil {
 		// log error
 		s.logger.Error().

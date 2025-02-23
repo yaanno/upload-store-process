@@ -105,15 +105,15 @@ func loadConfiguration() (*config.ServiceConfig, error) {
 		Logging: logger.LoggerConfig{
 			Level:       "info",
 			JSON:        true,
-			Development: false,
+			Development: true,
 		},
 		Server: config.ServerConfig{
 			Host: "0.0.0.0",
-			Port: 50051,
+			Port: 8001,
 		},
 		HttpServer: config.HttpServerConfig{
 			Host: "0.0.0.0",
-			Port: 50052,
+			Port: 8000,
 		},
 		Database: config.DatabaseConfig{
 			Driver: "sqlite",
