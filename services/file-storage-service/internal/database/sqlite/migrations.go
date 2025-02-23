@@ -43,6 +43,7 @@ func (m *DatabaseMigrator) Migrate(ctx context.Context) error {
 
 	// Create index for faster user_id queries
 	createUserIdIndexQuery := `
+	CREATE INDEX IF NOT EXISTS idx_file_metadata_status_dates ON file_metadata(processing_status, created_at, updated_at),
 	CREATE INDEX IF NOT EXISTS idx_file_metadata_user_id 
 	ON file_metadata (user_id)`
 

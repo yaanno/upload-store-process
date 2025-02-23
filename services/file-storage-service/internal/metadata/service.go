@@ -141,6 +141,8 @@ func (s *MetadataServiceImpl) ListFileMetadata(ctx context.Context, opts *domain
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	opts.Status = string(file.StatusComplete)
+
 	// call repository operation
 	records, err = s.metadataRepo.ListFileMetadata(ctx, opts)
 	if err != nil {

@@ -56,3 +56,33 @@ func (f *File) Validate() error {
 	}
 	return nil
 }
+
+// SetStatus updates the processing state of the file
+func (f *File) SetStatus(status FileStatus) {
+	f.ProcessingState = string(status)
+}
+
+// IsComplete checks if the file processing is complete
+func (f *File) IsComplete() bool {
+	return f.ProcessingState == string(StatusComplete)
+}
+
+// IsFailed checks if the file processing has failed
+func (f *File) IsFailed() bool {
+	return f.ProcessingState == string(StatusFailed)
+}
+
+// IsPending checks if the file processing is pending
+func (f *File) IsPending() bool {
+	return f.ProcessingState == string(StatusPending)
+}
+
+// IsUploading checks if the file is currently being uploaded
+func (f *File) IsUploading() bool {
+	return f.ProcessingState == string(StatusUploading)
+}
+
+// GetStatus returns the current processing state of the file
+func (f *File) GetStatus() FileStatus {
+	return FileStatus(f.ProcessingState)
+}

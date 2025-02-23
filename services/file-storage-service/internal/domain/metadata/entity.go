@@ -20,6 +20,7 @@ type FileMetadataRecord struct {
 type FileMetadataListOptions struct {
 	UserID string
 	FileID string
+	Status string
 }
 
 // NewFileMetadataListOptions creates a new FileMetadataListOptions instance

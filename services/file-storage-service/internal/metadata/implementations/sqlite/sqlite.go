@@ -414,10 +414,17 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *doma
 		return nil, 0, fmt.Errorf("invalid list options: %w", err)
 	}
 
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	// Count total files
 	countQuery := `SELECT COUNT(*) FROM file_metadata WHERE user_id = ?`
 	var totalFiles int
-	err := r.db.QueryRowContext(ctx, countQuery, opts.UserID).Scan(&totalFiles)
+
+	err = tx.QueryRowContext(ctx, countQuery, opts.UserID).Scan(&totalFiles)
 	if err != nil {
 		r.logger.Error().
 			Err(err).
@@ -426,7 +433,7 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *doma
 		return nil, 0, fmt.Errorf("failed to count file metadata: %w", err)
 	}
 
-	// Retrieve paginated file metadata
+	// Retrieve file metadata
 	query := `
 		SELECT 
 			id, 
@@ -438,9 +445,12 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *doma
 			updated_at
 		FROM file_metadata
 		WHERE user_id = ?
+		AND (? = '' OR processing_status = ?)
+        AND (is_deleted = 0 OR is_deleted IS NULL)
+        ORDER BY created_at DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, opts.UserID)
+	rows, err := tx.QueryContext(ctx, query, opts.UserID, opts.Status, opts.Status)
 	if err != nil {
 		r.logger.Error().
 			Err(err).
@@ -495,7 +505,7 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *doma
 		Int("totalFiles", totalFiles).
 		Msg("File metadata listed successfully")
 
-	return fileMetadataRecords, totalFiles, nil
+	return fileMetadataRecords, totalFiles, tx.Commit()
 }
 
 // RemoveFileMetadata removes a file metadata record by ID
