@@ -26,11 +26,11 @@ type UploadHandler interface {
 }
 
 type UploadHandlerImpl struct {
-	logger        logger.Logger
+	logger        *logger.Logger
 	uploadService service.UploadService
 }
 
-func NewFileUploadHandler(logger logger.Logger, uploadService service.UploadService) *UploadHandlerImpl {
+func NewFileUploadHandler(logger *logger.Logger, uploadService service.UploadService) *UploadHandlerImpl {
 	return &UploadHandlerImpl{logger: logger, uploadService: uploadService}
 }
 

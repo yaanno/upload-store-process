@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func LoggingInterceptor(log logger.Logger) grpc.UnaryServerInterceptor {
+func LoggingInterceptor(log *logger.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()
 

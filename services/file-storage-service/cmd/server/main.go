@@ -53,38 +53,36 @@ func main() {
 	}
 
 	// 4. Initialize Storage Provider
-	storage, err := initializeStorageProvider(cfg.Storage, wrappedLogger)
+	storage, err := initializeStorageProvider(cfg.Storage, &wrappedLogger)
 	if err != nil {
 		serviceLogger.Error().Err(err).Msg("Failed to initialize storage provider, service exiting")
 		os.Exit(1)
 	}
 
 	// 5. Initialize Repositories, Services, and Middleware
-	metadataRepository, err := repository.NewRepository("sqlite", db, wrappedLogger)
+	metadataRepository, err := repository.NewRepository("sqlite", db, &wrappedLogger)
 	if err != nil {
 		serviceLogger.Error().Err(err).Msg("Failed to initialize metadata repository, service exiting")
 		os.Exit(1)
 	}
-	uploadService := upload.NewUploadService(metadataRepository, storage, wrappedLogger)
+	uploadService := upload.NewUploadService(metadataRepository, storage, &wrappedLogger)
 	metadataService := repository.NewMetadataService(metadataRepository, &wrappedLogger)
 
 	// TODO: this should be the storageServiceServer because the handlers implement the same interface
 	fileOperationHandler := grpcHandler.NewFileOperationdHandler(metadataService, &wrappedLogger)
 
 	// 7. Initialize gRPC Server
-	grpcServer, grpcListener, err := initializeGRPCServer(cfg, wrappedLogger)
+	grpcServer, grpcListener, err := initializeGRPCServer(cfg, &wrappedLogger)
 	if err != nil {
 		serviceLogger.Error().Err(err).Msg("Failed to initialize gRPC server")
 		os.Exit(1)
 	}
-
 	storagev1.RegisterFileStorageServiceServer(grpcServer, fileOperationHandler)
 
 	// 8. Initialize HTTP Server
 
-	uploadHandler := handler.NewFileUploadHandler(wrappedLogger, uploadService)
+	uploadHandler := handler.NewFileUploadHandler(&wrappedLogger, uploadService)
 	healthHandler := handler.NewHealthHandler(&serviceLogger)
-
 	router := router.SetupRouter(uploadHandler, healthHandler)
 
 	httpServer := &http.Server{
@@ -93,11 +91,11 @@ func main() {
 	}
 
 	// 9. Start Servers in Goroutines
-	go startGrpcServer(grpcServer, grpcListener, wrappedLogger, cfg.Server)
-	go startHttpServer(httpServer, wrappedLogger, cfg.HttpServer)
+	go startGrpcServer(grpcServer, grpcListener, &wrappedLogger, cfg.Server)
+	go startHttpServer(httpServer, &wrappedLogger, cfg.HttpServer)
 
 	// 10. Graceful Shutdown Handling
-	waitForShutdown(grpcServer, httpServer, wrappedLogger)
+	waitForShutdown(grpcServer, httpServer, &wrappedLogger)
 }
 
 func loadConfiguration() (*config.ServiceConfig, error) {
@@ -155,22 +153,22 @@ func validateConfig(cfg *config.ServiceConfig) error {
 	return nil
 }
 
-func initializeStorageProvider(storageCfg config.Storage, serviceLogger logger.Logger) (storageProvider.Provider, error) {
+func initializeStorageProvider(storageCfg config.Storage, logger *logger.Logger) (storageProvider.Provider, error) {
 	// if storageCfg.Provider == "local" {
 	providerConfig := &storageProvider.Config{
 		BasePath: storageCfg.BasePath,
 	}
-	provider, err := storageProvider.NewProvider("local", providerConfig, serviceLogger)
+	provider, err := storageProvider.NewProvider("local", providerConfig, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize local storage provider: %w", err)
 	}
-	serviceLogger.Info().Str("provider", storageCfg.Provider).Str("basePath", storageCfg.BasePath).Msg("Storage provider initialized")
+	logger.Info().Str("provider", storageCfg.Provider).Str("basePath", storageCfg.BasePath).Msg("Storage provider initialized")
 	return provider, nil
 	// }
 
 }
 
-func initializeGRPCServer(cfg *config.ServiceConfig, logger logger.Logger) (*grpc.Server, net.Listener, error) {
+func initializeGRPCServer(cfg *config.ServiceConfig, logger *logger.Logger) (*grpc.Server, net.Listener, error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create gRPC listener: %w", err)
@@ -190,38 +188,38 @@ func initializeGRPCServer(cfg *config.ServiceConfig, logger logger.Logger) (*grp
 	return server, listener, nil
 }
 
-func startGrpcServer(grpcServer *grpc.Server, lis net.Listener, serviceLogger logger.Logger, serverCfg config.ServerConfig) {
-	serviceLogger.Info().
+func startGrpcServer(grpcServer *grpc.Server, lis net.Listener, logger *logger.Logger, serverCfg config.ServerConfig) {
+	logger.Info().
 		Str("host", serverCfg.Host).
 		Int("port", serverCfg.Port).
 		Msg("gRPC server starting")
 
 	if err := grpcServer.Serve(lis); err != nil {
-		serviceLogger.Error().Err(err).Msg("gRPC server failed")
+		logger.Error().Err(err).Msg("gRPC server failed")
 		// Do NOT os.Exit here in goroutine. Let the main function handle shutdown.
 		// Consider using channels to communicate errors back to main if needed for more complex error handling.
 	}
 }
 
-func startHttpServer(httpServer *http.Server, serviceLogger logger.Logger, httpServerCfg config.HttpServerConfig) {
-	serviceLogger.Info().
+func startHttpServer(httpServer *http.Server, logger *logger.Logger, httpServerCfg config.HttpServerConfig) {
+	logger.Info().
 		Str("host", httpServerCfg.Host).
 		Int("port", httpServerCfg.Port).
 		Msg("HTTP server starting")
 
 	if err := httpServer.ListenAndServe(); err != nil {
-		serviceLogger.Info().Msg("HTTP server closed")
+		logger.Info().Msg("HTTP server closed")
 	}
 }
 
-func waitForShutdown(grpcServer *grpc.Server, httpServer *http.Server, serviceLogger logger.Logger) {
+func waitForShutdown(grpcServer *grpc.Server, httpServer *http.Server, logger *logger.Logger) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	serviceLogger.Info().Msg("Shutting down servers...")
+	logger.Info().Msg("Shutting down servers...")
 	grpcServer.GracefulStop()
-	serviceLogger.Info().Msg("gRPC server shutdown complete")
+	logger.Info().Msg("gRPC server shutdown complete")
 	httpServer.Shutdown(context.Background())
-	serviceLogger.Info().Msg("Server shutdown complete")
+	logger.Info().Msg("Server shutdown complete")
 }

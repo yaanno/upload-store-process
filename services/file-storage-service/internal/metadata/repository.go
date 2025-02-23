@@ -27,7 +27,7 @@ const (
 	SQLite RepositoryType = "sqlite"
 )
 
-func NewRepository(repoType RepositoryType, db interface{}, logger logger.Logger) (FileMetadataRepository, error) {
+func NewRepository(repoType RepositoryType, db interface{}, logger *logger.Logger) (FileMetadataRepository, error) {
 	switch repoType {
 	case SQLite:
 		sqlDb, ok := db.(*sql.DB)

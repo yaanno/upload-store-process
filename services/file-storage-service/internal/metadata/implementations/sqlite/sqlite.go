@@ -27,11 +27,11 @@ var (
 // SQLiteFileMetadataRepository implements FileMetadataRepository for SQLite
 type SQLiteFileMetadataRepository struct {
 	db     *sql.DB
-	logger logger.Logger
+	logger *logger.Logger
 }
 
 // NewSQLiteFileMetadataRepository creates a new SQLite-based file metadata repository
-func NewSQLiteFileMetadataRepository(db *sql.DB, logger logger.Logger) *SQLiteFileMetadataRepository {
+func NewSQLiteFileMetadataRepository(db *sql.DB, logger *logger.Logger) *SQLiteFileMetadataRepository {
 	return &SQLiteFileMetadataRepository{
 		db:     db,
 		logger: logger,

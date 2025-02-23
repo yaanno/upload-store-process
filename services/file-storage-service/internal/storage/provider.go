@@ -37,7 +37,7 @@ const (
 	Local ProviderType = "local"
 )
 
-func NewProvider(providerType ProviderType, cfg interface{}, logger logger.Logger) (Provider, error) {
+func NewProvider(providerType ProviderType, cfg interface{}, logger *logger.Logger) (Provider, error) {
 	switch providerType {
 	case Local:
 		localCfg, ok := cfg.(*Config)

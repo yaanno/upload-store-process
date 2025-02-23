@@ -25,13 +25,13 @@ type UploadService interface {
 type UploadServiceImpl struct {
 	metadataRepo repository.FileMetadataRepository
 	storage      storage.Provider
-	logger       logger.Logger
+	logger       *logger.Logger
 }
 
 func NewUploadService(
 	metadataRepo repository.FileMetadataRepository,
 	storage storage.Provider,
-	logger logger.Logger,
+	logger *logger.Logger,
 ) *UploadServiceImpl {
 	return &UploadServiceImpl{
 		metadataRepo: metadataRepo,
