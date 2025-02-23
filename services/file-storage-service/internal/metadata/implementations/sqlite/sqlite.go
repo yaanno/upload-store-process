@@ -13,6 +13,13 @@ import (
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
+type CleanupResult struct {
+	DeletedCount    int64
+	LastProcessedID string
+	FailedIDs       []string
+	Error           error
+}
+
 var (
 	// ErrInvalidInput represents an error for invalid input
 	ErrInvalidInput = errors.New("invalid input")
@@ -309,7 +316,7 @@ func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Cont
 	return metadata, nil
 }
 
-// ListFileMetadata retrieves file metadata with advanced pagination and filtering
+// ListFileMetadata retrieves file metadata based on provided options
 func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) ([]*domain.FileMetadataRecord, error) {
 	if err := opts.ValidateEssential(); err != nil {
 		return nil, fmt.Errorf("invalid list options: %w", err)
@@ -399,7 +406,7 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 	return fileMetadataRecords, nil
 }
 
-// ListFiles retrieves file metadata with advanced pagination and filtering
+// ListFiles retrieves file metadata based on provided options
 func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *domain.FileMetadataListOptions) ([]*domain.FileMetadataRecord, int, error) {
 
 	// Validate options
@@ -565,6 +572,7 @@ func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, op
 	return count > 0, nil
 }
 
+// SoftDeleteMetadata marks a file metadata record as deleted
 func (r *SQLiteFileMetadataRepository) SoftDeleteMetadata(ctx context.Context, fileID, userID string) error {
 	query := `
         UPDATE file_metadata 
@@ -575,4 +583,152 @@ func (r *SQLiteFileMetadataRepository) SoftDeleteMetadata(ctx context.Context, f
     `
 	_, err := r.db.ExecContext(ctx, query, fileID, userID)
 	return err
+}
+
+func (r *SQLiteFileMetadataRepository) CleanupExpiredMetadata(ctx context.Context, expiredBefore time.Time) (int64, error) {
+	result := &CleanupResult{}
+	batchSize := 100
+	var lastID string // Cursor for pagination
+
+	for {
+		// Start transaction for this batch
+		tx, err := r.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+
+		// Defer transaction handling
+		defer func() {
+			if p := recover(); p != nil {
+				_ = tx.Rollback()
+				panic(p)
+			} else if err != nil {
+				_ = tx.Rollback()
+			}
+		}()
+
+		query := `
+            DELETE FROM file_metadata 
+            WHERE id IN (
+                SELECT id 
+                FROM file_metadata 
+                WHERE processing_status = 'PENDING' 
+                AND created_at < ? 
+                AND updated_at < ?
+                AND id > ?
+                ORDER BY id
+                LIMIT ?
+            )
+            RETURNING id
+        `
+
+		// Collect deleted IDs to track progress
+		rows, err := tx.QueryContext(ctx, query, expiredBefore, expiredBefore, lastID, batchSize)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to delete expired metadata: %w", err)
+		}
+
+		var deletedIDs []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				tx.Rollback()
+				result.FailedIDs = append(result.FailedIDs, id)
+				continue
+			}
+			deletedIDs = append(deletedIDs, id)
+		}
+		rows.Close()
+
+		if err = tx.Commit(); err != nil {
+			return 0, fmt.Errorf("failed to commit transaction: %w", err)
+		}
+
+		// Update progress
+		if len(deletedIDs) > 0 {
+			result.DeletedCount += int64(len(deletedIDs))
+			lastID = deletedIDs[len(deletedIDs)-1]
+			result.LastProcessedID = lastID
+		}
+
+		// Break if we processed less than batch size
+		if len(deletedIDs) < batchSize {
+			break
+		}
+
+		r.logger.Info().
+			Int("batchSize", len(deletedIDs)).
+			Interface("deleted", result).
+			Str("lastID", result.LastProcessedID).
+			Int64("totalDeleted", result.DeletedCount).
+			Msg("Batch cleanup completed")
+	}
+
+	return result.DeletedCount, nil
+}
+
+// FindExpiredUploads finds metadata records with expired upload tokens
+func (r *SQLiteFileMetadataRepository) FindExpiredUploads(ctx context.Context, expiredBefore time.Time) ([]*domain.FileMetadataRecord, int64, error) {
+	query := `
+        SELECT id, metadata_json, storage_path, processing_status, user_id, created_at, updated_at
+        FROM file_metadata 
+        WHERE processing_status = 'PENDING' 
+        AND created_at < ?
+        AND updated_at < ?
+    `
+	rows, err := r.db.QueryContext(ctx, query, expiredBefore, expiredBefore)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query expired uploads: %w", err)
+	}
+	defer rows.Close()
+
+	var fileMetadataRecords []*domain.FileMetadataRecord
+	for rows.Next() {
+		metadata := &domain.FileMetadataRecord{}
+		var fileMetadataJSON []byte
+		var userID string
+		err := rows.Scan(
+			&metadata.ID,
+			&fileMetadataJSON,
+			&metadata.StoragePath,
+			&metadata.ProcessingStatus,
+			&userID,
+			&metadata.CreatedAt,
+			&metadata.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error().
+				Err(err).
+				Msg("Error scanning file metadata row")
+			continue
+		}
+		if len(fileMetadataJSON) > 0 {
+			metadata.Metadata = &sharedv1.FileMetadata{}
+			if err := json.Unmarshal(fileMetadataJSON, metadata.Metadata); err != nil {
+				r.logger.Error().
+					Err(err).
+					Msg("Error unmarshaling file metadata")
+				continue
+			}
+			metadata.Metadata.UserId = userID
+		}
+		fileMetadataRecords = append(fileMetadataRecords, metadata)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.logger.Error().
+			Err(err).
+			Msg("Error in file metadata rows")
+		return nil, 0, fmt.Errorf("error processing file metadata rows: %w", err)
+	}
+
+	totalFiles := int64(len(fileMetadataRecords))
+
+	r.logger.Info().
+		Int64("totalFiles", totalFiles).
+		Msg("File metadata listed successfully")
+
+	return fileMetadataRecords, totalFiles, nil
 }

@@ -9,7 +9,7 @@ import (
 	handler "github.com/yaanno/upload-store-process/services/file-storage-service/internal/transport/http/handlers"
 )
 
-func SetupRouter(uploadHandler handler.UploadHandler, healthCheckHandler handler.HealthHandler) chi.Router {
+func SetupRouter(uploadHandler handler.UploadHandler, healthCheckHandler handler.HealthHandler, housekeepingHandler handler.HouseKeepingHandler) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(httprate.LimitByIP(100, 1*time.Minute))
@@ -27,6 +27,7 @@ func SetupRouter(uploadHandler handler.UploadHandler, healthCheckHandler handler
 	r.Route("/api/v1", func(r chi.Router) {
 		// Health check
 		r.Get("/healthz", healthCheckHandler.Healtz)
+		r.Get("/housekeeping", housekeepingHandler.CleanupMetadata)
 		// Bucket operations
 		// r.Put("/bucket", uploadHandler.CreateBucket)
 		// r.Delete("/bucket", uploadHandler.DeleteBucket)

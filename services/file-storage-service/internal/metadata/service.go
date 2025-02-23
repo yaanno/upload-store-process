@@ -36,6 +36,7 @@ type MetadataService interface {
 	DeleteFileMetadata(ctx context.Context, userID string, fileID string) error
 	ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) (records []*domain.FileMetadataRecord, err error)
 	PrepareUpload(ctx context.Context, params *PrepareUploadParams) (*PrepareUploadResult, error)
+	CleanupExpiredMetadata(ctx context.Context) (int64, error)
 }
 
 type MetadataServiceImpl struct {
@@ -222,6 +223,19 @@ func (s *MetadataServiceImpl) PrepareUpload(ctx context.Context, params *Prepare
 		ExpiresAt:   time.Now().Add(time.Hour * 1),
 		Message:     "File upload prepared successfully",
 	}, nil
+}
+
+func (s *MetadataServiceImpl) CleanupExpiredMetadata(ctx context.Context) (int64, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	expirationThreshold := time.Now().Add(-24 * time.Hour)
+	// Delete expired metadata records
+	result, err := s.metadataRepo.CleanupExpiredMetadata(ctx, expirationThreshold)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to delete expired file metadata")
+		return 0, status.Errorf(codes.Internal, "failed to delete expired file metadata")
+	}
+	return result, nil
 }
 
 var _ MetadataService = (*MetadataServiceImpl)(nil)

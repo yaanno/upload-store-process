@@ -83,7 +83,8 @@ func main() {
 
 	uploadHandler := handler.NewFileUploadHandler(&wrappedLogger, uploadService)
 	healthHandler := handler.NewHealthHandler(&serviceLogger)
-	router := router.SetupRouter(uploadHandler, healthHandler)
+	houseKeepingHandler := handler.NewHouseKeepingHandler(metadataService, &wrappedLogger)
+	router := router.SetupRouter(uploadHandler, healthHandler, houseKeepingHandler)
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.HttpServer.Host, cfg.HttpServer.Port),

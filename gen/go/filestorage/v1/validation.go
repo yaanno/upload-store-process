@@ -8,6 +8,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	MaxFileSize = 500 * 1024 * 1024 // 500 MB
+)
+
 func (req *DeleteFileRequest) Validate() error { // Method on the generated struct!
 	if req == nil {
 		return status.Errorf(codes.InvalidArgument, "request cannot be nil")
@@ -58,7 +62,7 @@ func (req *PrepareUploadRequest) Validate() error { // Method on the generated s
 	if req.FileSizeBytes <= 0 {
 		return status.Errorf(codes.InvalidArgument, "filesize cannot be empty")
 	}
-	if req.FileSizeBytes > 500*1024*1024 { // 500 MB
+	if req.FileSizeBytes > MaxFileSize {
 		return status.Errorf(codes.InvalidArgument, "file too large")
 	}
 	if !isAllowedFileType(req.Filename) {

@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
-	sqliteRepositoy "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata/implementations/sqlite"
+	sqliteRepository "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata/implementations/sqlite"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
@@ -19,6 +20,7 @@ type FileMetadataRepository interface {
 	UpdateFileMetadata(ctx context.Context, metadata *domain.FileMetadataRecord) error
 	IsFileOwnedByUser(ctx context.Context, opts *domain.FileMetadataListOptions) (bool, error)
 	SoftDeleteMetadata(ctx context.Context, fileID, userID string) error
+	CleanupExpiredMetadata(ctx context.Context, expirationTime time.Time) (int64, error)
 }
 
 type RepositoryType string
@@ -34,10 +36,10 @@ func NewRepository(repoType RepositoryType, db interface{}, logger *logger.Logge
 		if !ok {
 			return nil, errors.New("invalid database type")
 		}
-		return sqliteRepositoy.NewSQLiteFileMetadataRepository(sqlDb, logger), nil
+		return sqliteRepository.NewSQLiteFileMetadataRepository(sqlDb, logger), nil
 	default:
 		return nil, errors.New("invalid repository type")
 	}
 }
 
-var _ FileMetadataRepository = (*sqliteRepositoy.SQLiteFileMetadataRepository)(nil)
+var _ FileMetadataRepository = (*sqliteRepository.SQLiteFileMetadataRepository)(nil)
