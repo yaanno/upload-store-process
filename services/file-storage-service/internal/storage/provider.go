@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 
+	metadataService "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
 	filesystem "github.com/yaanno/upload-store-process/services/file-storage-service/internal/storage/providers/local"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
@@ -27,21 +28,22 @@ type Provider interface {
 type ProviderType string
 
 type Config struct {
-	BasePath string `mapstructure:"base_path"`
+	BasePath        string `mapstructure:"base_path"`
+	MetadataService metadataService.MetadataService
 }
 
 const (
 	Local ProviderType = "local"
 )
 
-func NewProvider(providerType ProviderType, cfg interface{}, logger *logger.Logger) (Provider, error) {
+func NewProvider(providerType ProviderType, cfg interface{}, metadataService metadataService.MetadataService, logger *logger.Logger) (Provider, error) {
 	switch providerType {
 	case Local:
 		localCfg, ok := cfg.(*Config)
 		if !ok {
 			return nil, errors.New("invalid configuration type")
 		}
-		return filesystem.NewLocalFileSystem(localCfg.BasePath), nil
+		return filesystem.NewLocalFileSystem(localCfg.BasePath, localCfg.MetadataService), nil
 	default:
 		return nil, errors.New("invalid provider type")
 	}

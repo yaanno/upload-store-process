@@ -14,13 +14,11 @@ type StorageService interface {
 	List(ctx context.Context) ([]string, error)
 }
 
-// FileStorageService implements the gRPC service
 type StorageServiceImpl struct {
 	logger   logger.Logger
 	provider Provider
 }
 
-// NewFileStorageService creates a new instance of FileStorageService
 func NewStorageService(
 	logger logger.Logger,
 	provider Provider,
@@ -31,7 +29,6 @@ func NewStorageService(
 	}
 }
 
-// StoreFile implements v1.FileStorageServiceServer.
 func (s *StorageServiceImpl) Store(ctx context.Context, fileID string, content io.Reader) (string, error) {
 	return s.provider.Store(ctx, fileID, content)
 }
@@ -40,7 +37,6 @@ func (s *StorageServiceImpl) List(ctx context.Context) ([]string, error) {
 	return s.provider.List(ctx)
 }
 
-// DeleteFile implements v1.FileStorageServiceServer.
 func (s *StorageServiceImpl) Delete(ctx context.Context, fileID string) error {
 	return s.provider.Delete(ctx, fileID)
 }

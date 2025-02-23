@@ -37,6 +37,8 @@ type MetadataService interface {
 	ListFileMetadata(ctx context.Context, opts *domain.FileMetadataListOptions) (records []*domain.FileMetadataRecord, err error)
 	PrepareUpload(ctx context.Context, params *PrepareUploadParams) (*PrepareUploadResult, error)
 	CleanupExpiredMetadata(ctx context.Context) (int64, error)
+	UpdateFileMetadata(ctx context.Context, fileID string, record *domain.FileMetadataRecord) error
+	RetrieveFileMetadataByID(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error)
 }
 
 type MetadataServiceImpl struct {
@@ -50,6 +52,21 @@ func NewMetadataService(metadataRepo FileMetadataRepository, logger *logger.Logg
 		metadataRepo: metadataRepo,
 		logger:       logger,
 	}
+}
+
+func (s *MetadataServiceImpl) UpdateFileMetadata(ctx context.Context, fileID string, record *domain.FileMetadataRecord) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if err := s.metadataRepo.UpdateFileMetadata(ctx, record); err != nil {
+		s.logger.Error().
+			Str("method", "UpdateFileMetadata").
+			Err(err).
+			Str("fileId", fileID).
+			Msg("failed to update file metadata")
+		return err
+	}
+	return nil
 }
 
 func (s *MetadataServiceImpl) CreateFileMetadata(ctx context.Context) error {
@@ -238,6 +255,25 @@ func (s *MetadataServiceImpl) CleanupExpiredMetadata(ctx context.Context) (int64
 		return 0, status.Errorf(codes.Internal, "failed to delete expired file metadata")
 	}
 	return result, nil
+}
+
+func (s *MetadataServiceImpl) RetrieveFileMetadataByID(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// call repository operation
+	record, err := s.metadataRepo.RetrieveFileMetadataByID(ctx, fileID)
+	if err != nil {
+		// log error
+		s.logger.Error().
+			Str("method", "RetrieveFileMetadataByID").
+			Err(err).
+			Str("fileId", fileID).
+			Msg("failed to retrieve file metadata")
+		// return error
+		return nil, err
+	}
+	// return record
+	return record, nil
 }
 
 var _ MetadataService = (*MetadataServiceImpl)(nil)

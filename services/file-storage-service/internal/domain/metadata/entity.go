@@ -14,6 +14,7 @@ type FileMetadataRecord struct {
 	ProcessingStatus string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	Checksum         string
 }
 
 // FileMetadataListOptions provides filtering and pagination for file metadata listing

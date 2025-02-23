@@ -53,21 +53,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 4. Initialize Storage Provider
-	storage, err := initializeStorageProvider(cfg.Storage, &wrappedLogger)
-	if err != nil {
-		serviceLogger.Error().Err(err).Msg("Failed to initialize storage provider, service exiting")
-		os.Exit(1)
-	}
-
 	// 5. Initialize Repositories, Services, and Middleware
 	metadataRepository, err := repository.NewRepository("sqlite", db, &wrappedLogger)
 	if err != nil {
 		serviceLogger.Error().Err(err).Msg("Failed to initialize metadata repository, service exiting")
 		os.Exit(1)
 	}
-	uploadService := upload.NewUploadService(metadataRepository, storage, &wrappedLogger)
 	metadataService := repository.NewMetadataService(metadataRepository, &wrappedLogger)
+
+	// 4. Initialize Storage Provider
+	storage, err := initializeStorageProvider(cfg.Storage, metadataService, &wrappedLogger)
+	if err != nil {
+		serviceLogger.Error().Err(err).Msg("Failed to initialize storage provider, service exiting")
+		os.Exit(1)
+	}
+
+	uploadService := upload.NewUploadService(metadataRepository, storage, &wrappedLogger)
 
 	healthChecker := healthchecker.NewHealthChecker(db, cfg.Storage.BasePath)
 
@@ -157,12 +158,13 @@ func validateConfig(cfg *config.ServiceConfig) error {
 	return nil
 }
 
-func initializeStorageProvider(storageCfg config.Storage, logger *logger.Logger) (storageProvider.Provider, error) {
+func initializeStorageProvider(storageCfg config.Storage, metadataService repository.MetadataService, logger *logger.Logger) (storageProvider.Provider, error) {
 	// if storageCfg.Provider == "local" {
 	providerConfig := &storageProvider.Config{
-		BasePath: storageCfg.BasePath,
+		BasePath:        storageCfg.BasePath,
+		MetadataService: metadataService,
 	}
-	provider, err := storageProvider.NewProvider("local", providerConfig, logger)
+	provider, err := storageProvider.NewProvider("local", providerConfig, metadataService, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize local storage provider: %w", err)
 	}

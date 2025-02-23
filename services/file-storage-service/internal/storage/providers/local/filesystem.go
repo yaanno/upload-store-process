@@ -1,7 +1,9 @@
 package local
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -9,17 +11,21 @@ import (
 	"time"
 
 	circuit "github.com/yaanno/upload-store-process/services/file-storage-service/internal/breaker"
+	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	metadataService "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
 )
 
 type LocalFileSystem struct {
-	basePath string
-	breaker  *circuit.CircuitBreaker
+	basePath        string
+	breaker         *circuit.CircuitBreaker
+	metadataService metadataService.MetadataService
 }
 
-func NewLocalFileSystem(basePath string) *LocalFileSystem {
+func NewLocalFileSystem(basePath string, metadataService metadataService.MetadataService) *LocalFileSystem {
 	return &LocalFileSystem{
-		basePath: basePath,
-		breaker:  circuit.NewCircuitBreaker(3, 10*time.Second),
+		basePath:        basePath,
+		breaker:         circuit.NewCircuitBreaker(3, 10*time.Second),
+		metadataService: metadataService,
 	}
 }
 
@@ -47,17 +53,37 @@ func (fs *LocalFileSystem) Store(ctx context.Context, fileID string, content io.
 		return "", err
 	}
 
+	// Create a TeeReader to calculate checksum while writing
+	var checksumBuf bytes.Buffer
+	teeReader := io.TeeReader(content, &checksumBuf)
+
 	storagePath := filepath.Join(fs.basePath, fileID)
 	if fs.fileExists(storagePath) {
 		return "", fmt.Errorf("file already exists: %s", fileID)
 	}
 
 	err := fs.breaker.Execute(ctx, func() error {
-		return fs.storeFile(storagePath, content)
+		return fs.storeFile(storagePath, teeReader)
 	})
 	if err != nil {
 		return "", err
 	}
+	// Calculate and store checksum
+	checksum, err := calculateChecksum(&checksumBuf)
+	if err != nil {
+		return "", err
+	}
+
+	metadata := &domain.FileMetadataRecord{
+		ID:          fileID,
+		Checksum:    checksum,
+		StoragePath: storagePath,
+	}
+
+	if err := fs.metadataService.UpdateFileMetadata(ctx, fileID, metadata); err != nil {
+		return "", fmt.Errorf("failed to update metadata: %w", err)
+	}
+
 	return storagePath, nil
 }
 
@@ -75,8 +101,14 @@ func (fs *LocalFileSystem) Retrieve(ctx context.Context, fileID string) (io.Read
 	}
 
 	storagePath := filepath.Join(fs.basePath, fileID)
+
 	if !fs.fileExists(storagePath) {
 		return nil, fmt.Errorf("file not found: %s", fileID)
+	}
+
+	// Verify file integrity before returning
+	if err := fs.verifyFileIntegrity(ctx, fileID, storagePath); err != nil {
+		return nil, fmt.Errorf("file integrity check failed: %w", err)
 	}
 
 	var file *os.File
@@ -161,7 +193,42 @@ func (fs *LocalFileSystem) validateFileID(fileID string) error {
 	return nil
 }
 
+// Add file existence helper
 func (fs *LocalFileSystem) fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
+}
+
+// Add checksum calculation helper
+func calculateChecksum(file io.Reader) (string, error) {
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", fmt.Errorf("failed to calculate checksum: %w", err)
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+// Add file integrity verification helper
+func (fs *LocalFileSystem) verifyFileIntegrity(ctx context.Context, fileID, storagePath string) error {
+	metadata, err := fs.metadataService.RetrieveFileMetadataByID(ctx, fileID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve checksum: %w", err)
+	}
+
+	file, err := os.Open(storagePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file for integrity check: %w", err)
+	}
+	defer file.Close()
+
+	currentChecksum, err := calculateChecksum(file)
+	if err != nil {
+		return err
+	}
+
+	if currentChecksum != metadata.Checksum {
+		return fmt.Errorf("file integrity check failed: checksums do not match")
+	}
+
+	return nil
 }
