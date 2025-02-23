@@ -22,9 +22,6 @@ type Provider interface {
 
 	// List returns a list of files in the storage
 	List(ctx context.Context) ([]string, error)
-
-	// GenerateStoragePath generates a storage path for a file
-	GenerateStoragePath(fileID string) string
 }
 
 type ProviderType string

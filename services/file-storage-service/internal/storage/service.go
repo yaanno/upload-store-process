@@ -12,7 +12,6 @@ type StorageService interface {
 	Retrieve(ctx context.Context, fileID string) (io.ReadCloser, error)
 	Delete(ctx context.Context, fileID string) error
 	List(ctx context.Context) ([]string, error)
-	GenerateStoragePath(fileID string) string
 }
 
 // FileStorageService implements the gRPC service
@@ -30,10 +29,6 @@ func NewStorageService(
 		logger:   logger,
 		provider: provider,
 	}
-}
-
-func (s *StorageServiceImpl) GenerateStoragePath(fileID string) string {
-	return s.provider.GenerateStoragePath(fileID)
 }
 
 // StoreFile implements v1.FileStorageServiceServer.

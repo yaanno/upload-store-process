@@ -67,11 +67,3 @@ func (fs *LocalFileSystem) List(ctx context.Context) ([]string, error) {
 	}
 	return files, nil
 }
-
-func (fs *LocalFileSystem) GetBasePath() string {
-	return fs.basePath
-}
-
-func (fs *LocalFileSystem) GenerateStoragePath(fileID string) string {
-	return ""
-}

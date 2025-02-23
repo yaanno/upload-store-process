@@ -2,13 +2,17 @@ package metadata
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"github.com/google/uuid"
+	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
+	"github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/file"
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
+	token "github.com/yaanno/upload-store-process/services/file-storage-service/internal/upload/token"
 	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type PrepareUploadParams struct {
@@ -164,28 +168,59 @@ func (s *MetadataServiceImpl) PrepareUpload(ctx context.Context, params *Prepare
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	metadata := &domain.FileMetadataRecord{
-		ID: uuid.New().String(),
-		// FileName:  params.FileName,
-		// FileSize:  params.FileSize,
-		// UserID:    params.UserID,
-		// Status:    domain.,
-		CreatedAt: time.Now(),
+	// Generate secure file ID
+	fileID, err := token.GenerateSecureFileID()
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to generate file ID")
+		return nil, status.Errorf(codes.Internal, "failed to generate file ID")
 	}
 
-	if err := s.metadataRepo.CreateFileMetadata(ctx, metadata); err != nil {
-		s.logger.Error().
-			Str("method", "PrepareUpload").
-			Err(err).
-			Msg("failed to create file metadata")
-		return nil, err
+	// Generate upload token
+	uploadToken, err := token.GenerateSecureUploadToken(fileID)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to generate upload token")
+		return nil, status.Errorf(codes.Internal, "failed to generate upload token")
+	}
+
+	// Generate storage path using the storage provider
+	storagePath, err := s.generateStoragePath(fileID)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to generate storage path")
+		return nil, status.Errorf(codes.Internal, "failed to generate storage path")
+	}
+
+	// Prepare initial metadata
+	initialMetadata := &sharedv1.FileMetadata{
+		FileId:           fileID,
+		OriginalFilename: params.FileName,
+		FileSizeBytes:    params.FileSize,
+		ContentType:      file.DetermineFileType(params.FileName),
+		CreatedAt:        timestamppb.Now(),
+		UserId:           params.UserID,
+	}
+
+	// Create initial metadata record
+	metadataRecord := &domain.FileMetadataRecord{
+		ID:               fileID,
+		Metadata:         initialMetadata,
+		StoragePath:      storagePath,
+		ProcessingStatus: string(file.StatusPending),
+		CreatedAt:        time.Now().UTC(),
+		UpdatedAt:        time.Now().UTC(),
+	}
+
+	// Store initial metadata
+	if err := s.metadataRepo.CreateFileMetadata(ctx, metadataRecord); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to create initial file metadata")
+		return nil, status.Errorf(codes.Internal, "failed to create file metadata")
 	}
 
 	return &PrepareUploadResult{
-		FileID:      metadata.ID,
-		StoragePath: metadata.StoragePath,
-		// UploadToken: generateUploadToken(metadata.ID),
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+		FileID:      fileID,
+		UploadToken: uploadToken,
+		StoragePath: storagePath,
+		ExpiresAt:   time.Now().Add(time.Hour * 1),
+		Message:     "File upload prepared successfully",
 	}, nil
 }
 
@@ -219,4 +254,11 @@ func (s *MetadataServiceImpl) validateFileOwnership(ctx context.Context, userID 
 	}
 
 	return nil
+}
+
+func (s *MetadataServiceImpl) generateStoragePath(fileID string) (string, error) {
+	// Implement storage path generation logic here
+	// This could involve combining the fileID with a timestamp or other factors
+	timestamp := time.Now().UnixNano()
+	return fmt.Sprintf("%d-%s", timestamp, fileID), nil
 }
