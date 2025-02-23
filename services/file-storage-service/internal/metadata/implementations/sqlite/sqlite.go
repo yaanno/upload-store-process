@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	sharedv1 "github.com/yaanno/upload-store-process/gen/go/shared/v1"
@@ -35,13 +36,17 @@ var (
 type SQLiteFileMetadataRepository struct {
 	db     *sql.DB
 	logger *logger.Logger
+	mu     sync.RWMutex
+	// lockTimeout is the maximum duration to acquire the lock
+	lockTimeout time.Duration
 }
 
 // NewSQLiteFileMetadataRepository creates a new SQLite-based file metadata repository
 func NewSQLiteFileMetadataRepository(db *sql.DB, logger *logger.Logger) *SQLiteFileMetadataRepository {
 	return &SQLiteFileMetadataRepository{
-		db:     db,
-		logger: logger,
+		db:          db,
+		logger:      logger,
+		lockTimeout: 5 * time.Second,
 	}
 }
 
@@ -52,6 +57,11 @@ func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, m
 	if err := metadata.Validate(); err != nil {
 		return fmt.Errorf("invalid file metadata: %w", err)
 	}
+
+	if err := r.acquireLock(ctx); err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer r.mu.Unlock()
 
 	// Convert FileMetadata to JSON
 	var fileMetadataJSON []byte
@@ -124,6 +134,11 @@ func (r *SQLiteFileMetadataRepository) CreateFileMetadata(ctx context.Context, m
 	if err := metadata.Validate(); err != nil {
 		return fmt.Errorf("invalid file metadata: %w", err)
 	}
+
+	if err := r.acquireLock(ctx); err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer r.mu.Unlock()
 
 	// Convert FileMetadata to JSON with error handling
 	var fileMetadataJSON []byte
@@ -252,6 +267,11 @@ func (r *SQLiteFileMetadataRepository) RetrieveFileMetadataByID(ctx context.Cont
 		return nil, fmt.Errorf("%w: file ID cannot be empty", ErrInvalidInput)
 	}
 
+	if err := r.acquireLock(ctx); err != nil {
+		return &domain.FileMetadataRecord{}, fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer r.mu.Unlock()
+
 	// Prepare SQL query
 	query := `
 		SELECT 
@@ -321,6 +341,11 @@ func (r *SQLiteFileMetadataRepository) ListFileMetadata(ctx context.Context, opt
 	if err := opts.ValidateEssential(); err != nil {
 		return nil, fmt.Errorf("invalid list options: %w", err)
 	}
+
+	if err := r.acquireLock(ctx); err != nil {
+		return []*domain.FileMetadataRecord{}, fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer r.mu.Unlock()
 
 	// Count total files
 	countQuery := `SELECT COUNT(*) FROM file_metadata WHERE user_id = ?`
@@ -414,6 +439,11 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *doma
 		return nil, 0, fmt.Errorf("invalid list options: %w", err)
 	}
 
+	if err := r.acquireLock(ctx); err != nil {
+		return []*domain.FileMetadataRecord{}, 0, fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer r.mu.Unlock()
+
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to begin transaction: %w", err)
@@ -448,9 +478,10 @@ func (r *SQLiteFileMetadataRepository) ListFiles(ctx context.Context, opts *doma
 		AND (? = '' OR processing_status = ?)
         AND (is_deleted = 0 OR is_deleted IS NULL)
         ORDER BY created_at DESC
+		LIMIT ?
 	`
 
-	rows, err := tx.QueryContext(ctx, query, opts.UserID, opts.Status, opts.Status)
+	rows, err := tx.QueryContext(ctx, query, opts.UserID, opts.Status, opts.Status, 10)
 	if err != nil {
 		r.logger.Error().
 			Err(err).
@@ -514,6 +545,11 @@ func (r *SQLiteFileMetadataRepository) RemoveFileMetadata(ctx context.Context, f
 	if fileID == "" {
 		return fmt.Errorf("%w: file ID cannot be empty", ErrInvalidInput)
 	}
+
+	if err := r.acquireLock(ctx); err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer r.mu.Unlock()
 
 	// Prepare delete query
 	query := `DELETE FROM file_metadata WHERE id = ?`
@@ -584,6 +620,11 @@ func (r *SQLiteFileMetadataRepository) IsFileOwnedByUser(ctx context.Context, op
 
 // SoftDeleteMetadata marks a file metadata record as deleted
 func (r *SQLiteFileMetadataRepository) SoftDeleteMetadata(ctx context.Context, fileID, userID string) error {
+	if err := r.acquireLock(ctx); err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer r.mu.Unlock()
+
 	query := `
         UPDATE file_metadata 
         SET 
@@ -599,6 +640,10 @@ func (r *SQLiteFileMetadataRepository) CleanupExpiredMetadata(ctx context.Contex
 	result := &CleanupResult{}
 	batchSize := 100
 	var lastID string // Cursor for pagination
+	if err := r.acquireLock(ctx); err != nil {
+		return 0, fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	defer r.mu.Unlock()
 
 	for {
 		// Start transaction for this batch
@@ -741,4 +786,22 @@ func (r *SQLiteFileMetadataRepository) FindExpiredUploads(ctx context.Context, e
 		Msg("File metadata listed successfully")
 
 	return fileMetadataRecords, totalFiles, nil
+}
+
+func (r *SQLiteFileMetadataRepository) acquireLock(ctx context.Context) error {
+	lockChan := make(chan struct{})
+
+	go func() {
+		r.mu.Lock()
+		close(lockChan)
+	}()
+
+	select {
+	case <-lockChan:
+		return nil
+	case <-time.After(r.lockTimeout):
+		return fmt.Errorf("lock acquisition timeout: possible deadlock detected")
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
