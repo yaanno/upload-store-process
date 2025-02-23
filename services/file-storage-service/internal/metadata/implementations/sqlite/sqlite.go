@@ -50,6 +50,32 @@ func NewSQLiteFileMetadataRepository(db *sql.DB, logger *logger.Logger) *SQLiteF
 	}
 }
 
+func (r *SQLiteFileMetadataRepository) BeginTx(ctx context.Context) (interface{}, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{
+		Isolation: sql.LevelSerializable,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	return tx, nil
+}
+
+func (r *SQLiteFileMetadataRepository) CommitTx(ctx context.Context, tx interface{}) error {
+	sqlTx, ok := tx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("invalid transaction type")
+	}
+	return sqlTx.Commit()
+}
+
+func (r *SQLiteFileMetadataRepository) RollbackTx(ctx context.Context, tx interface{}) error {
+	sqlTx, ok := tx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("invalid transaction type")
+	}
+	return sqlTx.Rollback()
+}
+
 // UpdateFileMetadata updates an existing file metadata record
 func (r *SQLiteFileMetadataRepository) UpdateFileMetadata(ctx context.Context, metadata *domain.FileMetadataRecord) error {
 

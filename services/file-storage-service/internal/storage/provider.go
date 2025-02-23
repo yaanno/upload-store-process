@@ -43,7 +43,7 @@ func NewProvider(providerType ProviderType, cfg interface{}, metadataService met
 		if !ok {
 			return nil, errors.New("invalid configuration type")
 		}
-		return filesystem.NewLocalFileSystem(localCfg.BasePath, localCfg.MetadataService), nil
+		return filesystem.NewLocalFileSystem(localCfg.BasePath, localCfg.MetadataService, logger), nil
 	default:
 		return nil, errors.New("invalid provider type")
 	}

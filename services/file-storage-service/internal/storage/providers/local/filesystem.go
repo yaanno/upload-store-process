@@ -13,19 +13,22 @@ import (
 	circuit "github.com/yaanno/upload-store-process/services/file-storage-service/internal/breaker"
 	domain "github.com/yaanno/upload-store-process/services/file-storage-service/internal/domain/metadata"
 	metadataService "github.com/yaanno/upload-store-process/services/file-storage-service/internal/metadata"
+	"github.com/yaanno/upload-store-process/services/shared/pkg/logger"
 )
 
 type LocalFileSystem struct {
 	basePath        string
 	breaker         *circuit.CircuitBreaker
 	metadataService metadataService.MetadataService
+	logger          *logger.Logger
 }
 
-func NewLocalFileSystem(basePath string, metadataService metadataService.MetadataService) *LocalFileSystem {
+func NewLocalFileSystem(basePath string, metadataService metadataService.MetadataService, logger *logger.Logger) *LocalFileSystem {
 	return &LocalFileSystem{
 		basePath:        basePath,
 		breaker:         circuit.NewCircuitBreaker(3, 10*time.Second),
 		metadataService: metadataService,
+		logger:          logger,
 	}
 }
 
@@ -53,16 +56,35 @@ func (fs *LocalFileSystem) Store(ctx context.Context, fileID string, content io.
 		return "", err
 	}
 
+	txCtx, err := fs.metadataService.BeginTx(ctx)
+	if err != nil {
+		return "", err
+	}
+	storagePath := filepath.Join(fs.basePath, fileID)
+	var success bool
+	defer func() {
+		if !success {
+			if rbErr := fs.metadataService.RollbackTx(txCtx); rbErr != nil {
+				fs.logger.Error().Err(rbErr).Msg("Failed to rollback transaction")
+			}
+			// Clean up the stored file if it exists
+			if fs.fileExists(storagePath) {
+				if cleanupErr := os.Remove(storagePath); cleanupErr != nil {
+					fs.logger.Error().Err(cleanupErr).Msg("Failed to cleanup file after transaction failure")
+				}
+			}
+		}
+	}()
+
 	// Create a TeeReader to calculate checksum while writing
 	var checksumBuf bytes.Buffer
 	teeReader := io.TeeReader(content, &checksumBuf)
 
-	storagePath := filepath.Join(fs.basePath, fileID)
 	if fs.fileExists(storagePath) {
 		return "", fmt.Errorf("file already exists: %s", fileID)
 	}
 
-	err := fs.breaker.Execute(ctx, func() error {
+	err = fs.breaker.Execute(txCtx, func() error {
 		return fs.storeFile(storagePath, teeReader)
 	})
 	if err != nil {
@@ -80,10 +102,15 @@ func (fs *LocalFileSystem) Store(ctx context.Context, fileID string, content io.
 		StoragePath: storagePath,
 	}
 
-	if err := fs.metadataService.UpdateFileMetadata(ctx, fileID, metadata); err != nil {
+	if err := fs.metadataService.UpdateFileMetadata(txCtx, fileID, metadata); err != nil {
 		return "", fmt.Errorf("failed to update metadata: %w", err)
 	}
 
+	if err := fs.metadataService.CommitTx(txCtx); err != nil {
+		success = false
+		return "", fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	success = true
 	return storagePath, nil
 }
 

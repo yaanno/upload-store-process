@@ -7,6 +7,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/viper v1.19.0
+	go.uber.org/mock v0.5.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
 )

@@ -29,6 +29,12 @@ type PrepareUploadResult struct {
 	Message     string
 }
 
+// Add transaction context type
+type TxContext struct {
+	context.Context
+	Tx interface{}
+}
+
 // MetadataService defines the interface for file metadata operations
 type MetadataService interface {
 	CreateFileMetadata(ctx context.Context) error
@@ -39,6 +45,10 @@ type MetadataService interface {
 	CleanupExpiredMetadata(ctx context.Context) (int64, error)
 	UpdateFileMetadata(ctx context.Context, fileID string, record *domain.FileMetadataRecord) error
 	RetrieveFileMetadataByID(ctx context.Context, fileID string) (*domain.FileMetadataRecord, error)
+	// Transaction methods
+	BeginTx(ctx context.Context) (context.Context, error)
+	CommitTx(ctx context.Context) error
+	RollbackTx(ctx context.Context) error
 }
 
 type MetadataServiceImpl struct {
@@ -55,17 +65,29 @@ func NewMetadataService(metadataRepo FileMetadataRepository, logger *logger.Logg
 }
 
 func (s *MetadataServiceImpl) UpdateFileMetadata(ctx context.Context, fileID string, record *domain.FileMetadataRecord) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	if err := s.metadataRepo.UpdateFileMetadata(ctx, record); err != nil {
-		s.logger.Error().
-			Str("method", "UpdateFileMetadata").
-			Err(err).
-			Str("fileId", fileID).
-			Msg("failed to update file metadata")
-		return err
+	txCtx, err := s.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+
+	var success bool
+	defer func() {
+		if !success {
+			if rbErr := s.RollbackTx(txCtx); rbErr != nil {
+				s.logger.Error().Err(rbErr).Msg("failed to rollback transaction")
+			}
+		}
+	}()
+
+	if err := s.metadataRepo.UpdateFileMetadata(txCtx, record); err != nil {
+		return fmt.Errorf("failed to update file metadata: %w", err)
+	}
+
+	if err := s.CommitTx(txCtx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	success = true
 	return nil
 }
 
@@ -313,4 +335,30 @@ func (s *MetadataServiceImpl) generateStoragePath(fileID string) (string, error)
 	// This could involve combining the fileID with a timestamp or other factors
 	timestamp := time.Now().UnixNano()
 	return fmt.Sprintf("%d-%s", timestamp, fileID), nil
+}
+
+// Implement transaction methods
+func (s *MetadataServiceImpl) BeginTx(ctx context.Context) (context.Context, error) {
+	tx, err := s.metadataRepo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	return &TxContext{
+		Context: ctx,
+		Tx:      tx,
+	}, nil
+}
+
+func (s *MetadataServiceImpl) CommitTx(ctx context.Context) error {
+	if txCtx, ok := ctx.(*TxContext); ok {
+		return s.metadataRepo.CommitTx(ctx, txCtx.Tx)
+	}
+	return fmt.Errorf("no transaction in context")
+}
+
+func (s *MetadataServiceImpl) RollbackTx(ctx context.Context) error {
+	if txCtx, ok := ctx.(*TxContext); ok {
+		return s.metadataRepo.RollbackTx(ctx, txCtx.Tx)
+	}
+	return fmt.Errorf("no transaction in context")
 }

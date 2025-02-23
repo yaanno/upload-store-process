@@ -21,6 +21,10 @@ type FileMetadataRepository interface {
 	IsFileOwnedByUser(ctx context.Context, opts *domain.FileMetadataListOptions) (bool, error)
 	SoftDeleteMetadata(ctx context.Context, fileID, userID string) error
 	CleanupExpiredMetadata(ctx context.Context, expirationTime time.Time) (int64, error)
+	// Transaction methods
+	BeginTx(ctx context.Context) (interface{}, error)
+	CommitTx(ctx context.Context, tx interface{}) error
+	RollbackTx(ctx context.Context, tx interface{}) error
 }
 
 type RepositoryType string
